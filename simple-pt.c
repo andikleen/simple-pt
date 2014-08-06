@@ -25,6 +25,7 @@
 
 static DEFINE_PER_CPU(unsigned long, pt_buffer_cpu);
 static DEFINE_PER_CPU(u64 *, topa_cpu);
+static DEFINE_PER_CPU(bool, pt_running);
 static int pt_buffer_order = 11;
 static int pt_error;
 module_param(pt_buffer_order, int, 0444);
@@ -41,6 +42,7 @@ static int start_pt(void)
 {
 	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(pt_buffer_cpu)));
 	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
+	__get_cpu_var(pt_running) = true;
 
 	return wrmsrl_safe(MSR_IA32_RTIT_CTL, TRACE_EN|TO_PA|TSC_EN);
 }
@@ -94,6 +96,8 @@ out_pt_buffer:
 	free_pages(pt_buffer, pt_buffer_order);	
 	__get_cpu_var(pt_buffer_cpu) = 0;
 }
+
+static void simple_pt_exit(void);
 			       
 static int simple_pt_init(void)
 {
@@ -116,21 +120,24 @@ static int simple_pt_init(void)
 	on_each_cpu(simple_pt_cpu_init, NULL, 1);
 	if (pt_error) {
 		pr_err("PT initialization failed");
+		simple_pt_exit();
 		return pt_error;
 	}
 
 	/* cpu notifier */
 	return 0;
-
 }
 
 static void stop_pt(void *arg)
 {
 	u64 status;
+	if (!__get_cpu_var(pt_running))
+		return;
 	wrmsrl_safe(MSR_IA32_RTIT_CTL, 0LL);
 	status = rtit_status();
 	if (status)
 		pr_info("cpu %d, rtit status %llx after stopping\n", smp_processor_id(), status);
+	__get_cpu_var(pt_running) = false;
 }
 
 static void simple_pt_exit(void)
