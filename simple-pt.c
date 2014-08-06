@@ -1,4 +1,7 @@
-/* Minimal PT driver */
+/* Minimal PT driver. */
+
+#define pr_fmt(fmt) KBUILD_MODNAME fmt
+
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/kernel.h>
@@ -62,7 +65,7 @@ static void simple_pt_cpu_init(void *arg)
 	}
 
 	/* allocate buffer */
-	pt_buffer = __get_free_pages(GFP_KERNEL|__GFP_NOWARN, pt_buffer_order);
+	pt_buffer = __get_free_pages(GFP_KERNEL|__GFP_NOWARN|__GFP_ZERO, pt_buffer_order);
 	if (!pt_buffer) {
 		pr_err("cpu %d, Cannot allocate order %d KB buffer\n", cpu, pt_buffer_order);
 		pt_error = -ENOMEM;
@@ -84,7 +87,7 @@ static void simple_pt_cpu_init(void *arg)
 	topa[1] = (u64)__pa(topa) | TOPA_END; /* circular buffer */
 
 	if (start_pt() < 0) {
-		pr_err("Enabling PT failed, status %llx\n", rtit_status());
+		pr_err("cpu %d, Enabling PT failed, status %llx\n", cpu, rtit_status());
 		pt_error = -EIO;
 		goto out_topa;
 	}
