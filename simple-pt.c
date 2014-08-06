@@ -54,7 +54,12 @@ static int start_pt(void)
 	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
 	__get_cpu_var(pt_running) = true;
 
-	return wrmsrl_safe(MSR_IA32_RTIT_CTL, TRACE_EN|TO_PA|TSC_EN);
+	if (wrmsrl_safe(MSR_IA32_RTIT_CTL, TRACE_EN|TO_PA|TSC_EN) < 0) {
+		if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &old) == 0)
+			pr_info("ctl %llx\n", old);
+		return -1;
+	}
+	return 0;
 }
 
 static void do_start_pt(void *arg)
