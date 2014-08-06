@@ -11,11 +11,12 @@
 #include <asm/processor.h>
 
 #define MSR_IA32_RTIT_CTL 		0x00000570
-#define TRACE_EN (1ULL << 0)
+#define TRACE_EN BIT(0)
 /* os, user, cr3 */
-#define TO_PA    (1ULL << 8)
-#define TSC_EN   (1ULL << 10)
-#define DIS_RETC (1ULL << 11)
+#define TO_PA    BIT(8)
+#define TSC_EN   BIT(10)
+#define DIS_RETC BIT(11)
+#define BRANCH_EN BIT(13)
 #define MSR_IA32_RTIT_STATUS 		0x00000571
 #define MSR_IA32_CR3_MATCH 		0x00000572
 #define MSR_IA32_RTIT_OUTPUT_BASE 	0x00000560
@@ -29,7 +30,7 @@
 static DEFINE_PER_CPU(unsigned long, pt_buffer_cpu);
 static DEFINE_PER_CPU(u64 *, topa_cpu);
 static DEFINE_PER_CPU(bool, pt_running);
-static int pt_buffer_order = 11;
+static int pt_buffer_order = 8;
 static int pt_error;
 module_param(pt_buffer_order, int, 0444);
 
@@ -47,7 +48,7 @@ static int start_pt(void)
 	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
 	__get_cpu_var(pt_running) = true;
 
-	return wrmsrl_safe(MSR_IA32_RTIT_CTL, TRACE_EN|TO_PA|TSC_EN);
+	return wrmsrl_safe(MSR_IA32_RTIT_CTL, TRACE_EN|TO_PA|TSC_EN|BRANCH_EN);
 }
 
 static void simple_pt_cpu_init(void *arg)
@@ -67,7 +68,8 @@ static void simple_pt_cpu_init(void *arg)
 	/* allocate buffer */
 	pt_buffer = __get_free_pages(GFP_KERNEL|__GFP_NOWARN|__GFP_ZERO, pt_buffer_order);
 	if (!pt_buffer) {
-		pr_err("cpu %d, Cannot allocate order %d KB buffer\n", cpu, pt_buffer_order);
+		pr_err("cpu %d, Cannot allocate %d KB buffer\n", cpu,
+				(pt_buffer_order << PAGE_SHIFT) / 1024);
 		pt_error = -ENOMEM;
 		return;
 	}
@@ -122,7 +124,7 @@ static int simple_pt_init(void)
 	
 	on_each_cpu(simple_pt_cpu_init, NULL, 1);
 	if (pt_error) {
-		pr_err("PT initialization failed");
+		pr_err("PT initialization failed\n");
 		simple_pt_exit();
 		return pt_error;
 	}
@@ -155,7 +157,7 @@ static void simple_pt_exit(void)
 		if (per_cpu(pt_buffer_cpu, cpu))
 			free_pages(per_cpu(pt_buffer_cpu, cpu), pt_buffer_order);		
 	}
-	pr_info("Exited simple pt");
+	pr_info("exited\n");
 }
 
 module_init(simple_pt_init);
