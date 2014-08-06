@@ -10,4 +10,7 @@ install:
 
 clean:
 	${M} clean
+	rm -rf sptdump
 
+sptdump: CFLAGS := -g -Wall
+sptdump: sptdump.o
