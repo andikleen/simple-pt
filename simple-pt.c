@@ -135,14 +135,22 @@ static int simple_pt_init(void)
 
 static void stop_pt(void *arg)
 {
+	u64 offset;
 	u64 status;
+	int cpu = smp_processor_id();
+
 	if (!__get_cpu_var(pt_running))
 		return;
 	wrmsrl_safe(MSR_IA32_RTIT_CTL, 0LL);
 	status = rtit_status();
 	if (status)
-		pr_info("cpu %d, rtit status %llx after stopping\n", smp_processor_id(), status);
+		pr_info("cpu %d, rtit status %llx after stopping\n", cpu, status);
 	__get_cpu_var(pt_running) = false;
+
+	rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
+	pr_info("cpu %d, table offset %llu output_offset %llu\n", cpu,
+			offset & 0xffffffff,
+			offset >> 32);
 }
 
 static void simple_pt_exit(void)
