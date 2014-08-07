@@ -23,7 +23,9 @@
 #define MSR_IA32_RTIT_OUTPUT_MASK_PTRS	0x00000561
 #define MSR_IA32_RTIT_CTL		0x00000570
 #define TRACE_EN	BIT(0)
-/* os, user, cr3 */
+#define CTL_OS		BIT(1)
+#define CTL_USER	BIT(2)
+#define CR3_FILTER	BIT(7)
 #define TO_PA		BIT(8)
 #define TSC_EN		BIT(10)
 #define DIS_RETC	BIT(11)
@@ -45,6 +47,8 @@ static bool start = true;
 module_param(start, bool, 0444);
 static int hexdump = 64;
 module_param(hexdump, int, 0444);
+static int filter = 3; /* bit 0 set: trace ring 0, bit 1 set: trace ring 3 */
+module_param(filter, int, 0444);
 
 static u64 rtit_status(void)
 {
@@ -64,7 +68,7 @@ static int start_pt(void)
 
 	if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &old) < 0)
 		return -1;
-	old |= TRACE_EN|TO_PA|TSC_EN;
+	old |= TRACE_EN | TO_PA| TSC_EN | ((filter & 3) << 2);
 	if (wrmsrl_safe(MSR_IA32_RTIT_CTL, old) < 0)
 		return -1;
 	return 0;
