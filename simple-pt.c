@@ -38,9 +38,13 @@ static DEFINE_PER_CPU(unsigned long, pt_buffer_cpu);
 static DEFINE_PER_CPU(u64 *, topa_cpu);
 static DEFINE_PER_CPU(bool, pt_running);
 static DEFINE_PER_CPU(u64, pt_offset);
-static int pt_buffer_order = 8;
+static int pt_buffer_order = 9;
 static int pt_error;
 module_param(pt_buffer_order, int, 0444);
+static bool start = true;
+module_param(start, bool, 0444);
+static int hexdump = 64;
+module_param(hexdump, int, 0444);
 
 static u64 rtit_status(void)
 {
@@ -54,7 +58,7 @@ static int start_pt(void)
 {
 	u64 old;
 
-	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(pt_buffer_cpu)));
+	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(topa_cpu)));
 	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
 	__get_cpu_var(pt_running) = true;
 
@@ -110,7 +114,7 @@ static void simple_pt_cpu_init(void *arg)
 	topa[0] = (u64)__pa(pt_buffer) | (pt_buffer_order << TOPA_SIZE_SHIFT);
 	topa[1] = (u64)__pa(topa) | TOPA_END; /* circular buffer */
 
-	if (start_pt() < 0) {
+	if (start && start_pt() < 0) {
 		pr_err("cpu %d, Enabling PT failed, status %llx\n", cpu, rtit_status());
 		pt_error = -EIO;
 		goto out_topa;
@@ -124,7 +128,6 @@ out_pt_buffer:
 	__get_cpu_var(pt_buffer_cpu) = 0;
 }
 
-static void simple_pt_exit(void);
 static void stop_pt(void *arg);
 
 static int simple_pt_mmap(struct file *file, struct vm_area_struct *vma)
@@ -188,6 +191,8 @@ static struct miscdevice simple_pt_miscdev = {
 	&simple_pt_fops
 };
 
+static void free_all_buffers(void);
+
 static int simple_pt_init(void)
 {
 	unsigned a, b, c, d;
@@ -210,7 +215,7 @@ static int simple_pt_init(void)
 	on_each_cpu(simple_pt_cpu_init, NULL, 1);
 	if (pt_error) {
 		pr_err("PT initialization failed\n");
-		simple_pt_exit();
+		free_all_buffers();
 		return pt_error;
 	}
 
@@ -219,7 +224,7 @@ static int simple_pt_init(void)
 	err = misc_register(&simple_pt_miscdev);
 	if (err < 0) {
 		pr_err("Cannot register simple-pt device\n");
-		simple_pt_exit();
+		free_all_buffers();
 		return err;
 	}
 
@@ -243,19 +248,13 @@ static void stop_pt(void *arg)
 	rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
 	__get_cpu_var(pt_offset) = offset >> 32;
 	pr_info("cpu %d, table offset %llu output_offset %llu\n", cpu,
-			offset & 0xffffffff,
+			(offset & 0xffffffff) >> (7 - 3),
 			offset >> 32);
 }
 
-static void simple_pt_exit(void)
+static void free_all_buffers(void)
 {
 	int cpu;
-
-	on_each_cpu(stop_pt, NULL, 1);
-
-	print_hex_dump(KERN_INFO, "pt: ", DUMP_PREFIX_OFFSET, 16, 1,
-			(void *)__get_cpu_var(pt_buffer_cpu), 64, false);
-
 
 	for_each_possible_cpu (cpu) {
 		if (per_cpu(topa_cpu, cpu))
@@ -263,6 +262,18 @@ static void simple_pt_exit(void)
 		if (per_cpu(pt_buffer_cpu, cpu))
 			free_pages(per_cpu(pt_buffer_cpu, cpu), pt_buffer_order);
 	}
+}
+
+static void simple_pt_exit(void)
+{
+	on_each_cpu(stop_pt, NULL, 1);
+
+	if (hexdump)
+		print_hex_dump(KERN_INFO, "pt: ", DUMP_PREFIX_OFFSET, 16, 1,
+			(void *)__get_cpu_var(pt_buffer_cpu), hexdump, false);
+
+	free_all_buffers();
+	misc_deregister(&simple_pt_miscdev);
 	pr_info("exited\n");
 }
 
