@@ -6,7 +6,7 @@
    Make on/off state per cpu
    Handle CPU hotplug properly.
    Need more locking?
-   Intercept signal and oops?
+   Add stop-on-kprobe
    Test old kernels
    */
 
