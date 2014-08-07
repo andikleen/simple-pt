@@ -1,7 +1,9 @@
 /* Minimal PT driver. */
 /* Open: CPU hotplug */
 
-#define pr_fmt(fmt) KBUILD_MODNAME fmt
+#define DEBUG 1
+
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt 
 
 #include <linux/module.h>
 #include <linux/miscdevice.h>
@@ -27,8 +29,8 @@
 #define DIS_RETC 	BIT(11)
 #define MSR_IA32_RTIT_STATUS 		0x00000571
 #define MSR_IA32_CR3_MATCH 		0x00000572
-#define TOPA_STOP 	BIT(2)
-#define TOPA_INT  	BIT(1)
+#define TOPA_STOP 	BIT(4)
+#define TOPA_INT  	BIT(2)
 #define TOPA_END  	BIT(0)
 #define TOPA_SIZE_SHIFT 6
 
@@ -50,15 +52,17 @@ static u64 rtit_status(void)
 
 static int start_pt(void)
 {
+	u64 old;
+
 	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(pt_buffer_cpu)));
 	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
 	__get_cpu_var(pt_running) = true;
 
-	if (wrmsrl_safe(MSR_IA32_RTIT_CTL, TRACE_EN|TO_PA|TSC_EN) < 0) {
-		if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &old) == 0)
-			pr_info("ctl %llx\n", old);
+	if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &old) < 0)
 		return -1;
-	}
+	old |= TRACE_EN|TO_PA|TSC_EN;
+	if (wrmsrl_safe(MSR_IA32_RTIT_CTL, old) < 0)
+		return -1;
 	return 0;
 }
 
@@ -248,6 +252,10 @@ static void simple_pt_exit(void)
 	int cpu;
 
 	on_each_cpu(stop_pt, NULL, 1);
+
+	print_hex_dump(KERN_INFO, "pt: ", DUMP_PREFIX_OFFSET, 16, 1,
+			(void *)__get_cpu_var(pt_buffer_cpu), 64, false); 
+
 
 	for_each_possible_cpu (cpu) {
 		if (per_cpu(topa_cpu, cpu))
