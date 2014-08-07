@@ -172,7 +172,7 @@ static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 		stop_pt(NULL);
 		return 0;
 	case SIMPLE_PT_GET_SIZE:
-		return put_user(PAGE_SHIFT << pt_buffer_order, (int *)arg);
+		return put_user(PAGE_SIZE << pt_buffer_order, (int *)arg);
 	case SIMPLE_PT_GET_OFFSET:
 		if (per_cpu(pt_running, (long)file->private_data))
 			return -EIO;
@@ -216,6 +216,12 @@ static int simple_pt_init(void)
 		return -EIO;
 	}
 
+	err = misc_register(&simple_pt_miscdev);
+	if (err < 0) {
+		pr_err("Cannot register simple-pt device\n");
+		return err;
+	}
+
 	on_each_cpu(simple_pt_cpu_init, NULL, 1);
 	if (pt_error) {
 		pr_err("PT initialization failed\n");
@@ -223,15 +229,11 @@ static int simple_pt_init(void)
 		return pt_error;
 	}
 
+	if (start)
+		pr_info("running with %d KB buffer\n",
+				(pt_buffer_shuft << PAGE_SHIFT) / 1024);
+
 	/* XXX cpu notifier */
-
-	err = misc_register(&simple_pt_miscdev);
-	if (err < 0) {
-		pr_err("Cannot register simple-pt device\n");
-		free_all_buffers();
-		return err;
-	}
-
 	return 0;
 }
 
