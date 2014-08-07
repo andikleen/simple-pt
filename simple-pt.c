@@ -15,6 +15,7 @@
 #include <linux/mm.h>
 #include <linux/uaccess.h>
 #include <linux/sched.h>
+#include <trace/events/sched.h>
 #include <asm/msr.h>
 #include <asm/processor.h>
 
@@ -201,7 +202,8 @@ static struct miscdevice simple_pt_miscdev = {
 
 static void free_all_buffers(void);
 
-static void probe_sched_process_exec(struct task_struct *p, pid_t old_pid,
+static void probe_sched_process_exec(void *arg,
+				     struct task_struct *p, pid_t old_pid,
 				     struct linux_binprm *bprm)
 {
 	u64 cr3;
