@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <stdint.h>
+#include <sys/wait.h>
 
 #define err(x) perror(x), exit(1)
 
@@ -24,6 +25,7 @@ int main(int ac, char **av)
 
 	signal(SIGUSR1, handle_usr1);
 	signal(SIGINT, handle_usr1);
+	signal(SIGCHLD, SIG_IGN);
 
 	int i;
 	for (i = 0; i < ncpus; i++) {
@@ -44,9 +46,17 @@ int main(int ac, char **av)
 
 	if (ioctl(pfds[0], SIMPLE_PT_START, 0) < 0)
 		perror("SIMPLE_PT_START");
-	printf("started, press Ctrl-C or SIGUSR1\n");
+	printf("started\n");
 
-	pause();
+	if (av[1]) {
+		if (fork() == 0) {
+			if (execvp(av[1], av + 1) < 0)
+				perror("execvp");
+			_exit(1);
+		}
+		wait(NULL);
+	} else
+		pause();
 
 	printf("stopped\n");
 	if (ioctl(pfds[0], SIMPLE_PT_STOP, 0) < 0)
@@ -59,8 +69,11 @@ int main(int ac, char **av)
 		if (fd < 0)
 			err("Opening output file");
 		unsigned offset;
-		if (ioctl(pfds[i], SIMPLE_PT_GET_OFFSET, &offset) < 0)
-			err("SIMPLE_PT_GET_OFFSET");
+		if (ioctl(pfds[i], SIMPLE_PT_GET_OFFSET, &offset) < 0) {
+			perror("SIMPLE_PT_GET_OFFSET");
+			continue;
+		}
+		printf("cpu %d offset %u, size %u, writing to %s\n", i, offset, bufsize, fn);
 		if (*(uint64_t *)(pbuf[i] + offset))
 			write(fd, pbuf[i] + offset, bufsize - offset);
 		write(fd, pbuf[i], offset);

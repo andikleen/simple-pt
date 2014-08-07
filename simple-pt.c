@@ -62,15 +62,18 @@ static int start_pt(void)
 {
 	u64 old;
 
+	if (__get_cpu_var(pt_running))
+		return 0;
+
 	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(topa_cpu)));
 	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
-	__get_cpu_var(pt_running) = true;
 
 	if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &old) < 0)
 		return -1;
 	old |= TRACE_EN | TO_PA| TSC_EN | ((filter & 3) << 2);
 	if (wrmsrl_safe(MSR_IA32_RTIT_CTL, old) < 0)
 		return -1;
+	__get_cpu_var(pt_running) = true;
 	return 0;
 }
 
@@ -98,8 +101,8 @@ static void simple_pt_cpu_init(void *arg)
 	/* allocate buffer */
 	pt_buffer = __get_free_pages(GFP_KERNEL|__GFP_NOWARN|__GFP_ZERO, pt_buffer_order);
 	if (!pt_buffer) {
-		pr_err("cpu %d, Cannot allocate %d KB buffer\n", cpu,
-				(pt_buffer_order << PAGE_SHIFT) / 1024);
+		pr_err("cpu %d, Cannot allocate %ld KB buffer\n", cpu,
+				(PAGE_SIZE << pt_buffer_order) / 1024);
 		pt_error = -ENOMEM;
 		return;
 	}
@@ -139,7 +142,7 @@ static int simple_pt_mmap(struct file *file, struct vm_area_struct *vma)
 	unsigned long len = vma->vm_end - vma->vm_start;
 	int cpu = (int)(long)file->private_data;
 
-	if (len % PAGE_SIZE || len > (PAGE_SHIFT << pt_buffer_order))
+	if (len % PAGE_SIZE || len != (PAGE_SIZE << pt_buffer_order) || vma->vm_pgoff)
 		return -EINVAL;
 
 	if (vma->vm_flags & VM_WRITE)
@@ -149,8 +152,8 @@ static int simple_pt_mmap(struct file *file, struct vm_area_struct *vma)
 		return -EIO;
 
 	return remap_pfn_range(vma, vma->vm_start,
-			       __pa(per_cpu(pt_buffer_cpu, cpu)),
-			       PAGE_SHIFT << pt_buffer_order,
+			       __pa(per_cpu(pt_buffer_cpu, cpu)) >> PAGE_SHIFT,
+			       PAGE_SIZE << pt_buffer_order,
 			       vma->vm_page_prot);
 }
 
@@ -169,7 +172,7 @@ static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 		on_each_cpu(do_start_pt, NULL, 1);
 		return 0;
 	case SIMPLE_PT_STOP:
-		stop_pt(NULL);
+		on_each_cpu(stop_pt, NULL, 1);
 		return 0;
 	case SIMPLE_PT_GET_SIZE:
 		return put_user(PAGE_SIZE << pt_buffer_order, (int *)arg);
@@ -230,8 +233,8 @@ static int simple_pt_init(void)
 	}
 
 	if (start)
-		pr_info("running with %d KB buffer\n",
-				(pt_buffer_shuft << PAGE_SHIFT) / 1024);
+		pr_info("running with %ld KB buffer\n",
+				(PAGE_SIZE << pt_buffer_order) / 1024);
 
 	/* XXX cpu notifier */
 	return 0;
