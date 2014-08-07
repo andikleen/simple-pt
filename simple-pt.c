@@ -1,11 +1,21 @@
 /* Minimal PT driver. */
-/* Open: CPU hotplug */
+/* Author: Andi Kleen */
+/* Notebook:
+   CR 3 filter
+   Make parameters use run time callbacks.
+   Make on/off state per cpu
+   Handle CPU hotplug properly.
+   Need more locking?
+   Intercept signal and oops?
+   Test old kernels
+   */
 
 #define DEBUG 1
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/module.h>
+#include <linux/version.h>
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
 #include <linux/moduleparam.h>
@@ -15,6 +25,7 @@
 #include <linux/mm.h>
 #include <linux/uaccess.h>
 #include <linux/sched.h>
+#include <linux/kallsyms.h>
 #include <trace/events/sched.h>
 #include <asm/msr.h>
 #include <asm/processor.h>
@@ -216,8 +227,6 @@ static int simple_pt_init(void)
 	unsigned a, b, c, d;
 	int err;
 
-	pr_info("Simple PT\n");
-
 	/* check cpuid */
 	cpuid_count(0x07, 0, &a, &b, &c, &d);
 	if ((b & (1 << 25)) == 0) {
@@ -243,12 +252,26 @@ static int simple_pt_init(void)
 		return pt_error;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
+	{
+	/* Workaround for newer kernels which use non exported symbols */
+	struct tracepoint *exec_tp;
+	exec_tp = (struct tracepoint *)kallsyms_lookup_name("__tracepoint_sched_process_exec");
+	if (!exec_tp) {
+		err = -EIO;
+		/* Continue */
+	} else {
+		err = tracepoint_probe_register(exec_tp, (void *)probe_sched_process_exec, NULL);
+	}
+	}
+#else
 	err = register_trace_sched_process_exec(probe_sched_process_exec, NULL);
+#endif
 	if (err)
 		pr_info("Cannot register exec tracepoint: %d\n", err);
 
-	if (start)
-		pr_info("running with %ld KB buffer\n",
+	pr_info("%s with %ld KB buffer\n",
+				start ? "running" : "loaded",
 				(PAGE_SIZE << pt_buffer_order) / 1024);
 
 	/* XXX cpu notifier */
