@@ -81,13 +81,10 @@ int main(int ac, char **av)
 			continue;
 		}
 		unsigned len = 0;
-		if (*(uint64_t *)(pbuf[i] + offset)) {
-			write(fd, pbuf[i] + offset, bufsize - offset);
-			len += bufsize - offset;
-		}
-		write(fd, pbuf[i], offset);
-		len += offset;
-		printf("cpu %d offset %u, %u bytes, writing to %s\n", i, offset, len, fn);
+		if (*(uint64_t *)(pbuf[i] + offset))
+			len += write(fd, pbuf[i] + offset, bufsize - offset);
+		len += write(fd, pbuf[i], offset);
+		printf("cpu %d offset %u, %u KB, writing to %s\n", i, offset, len >> 10, fn);
 		close(fd);
 	}
 
