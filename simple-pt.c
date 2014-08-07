@@ -3,7 +3,7 @@
 
 #define DEBUG 1
 
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/module.h>
 #include <linux/miscdevice.h>
@@ -19,19 +19,19 @@
 
 #include "simple-pt.h"
 
-#define MSR_IA32_RTIT_OUTPUT_BASE 	0x00000560
-#define MSR_IA32_RTIT_OUTPUT_MASK_PTRS 	0x00000561
-#define MSR_IA32_RTIT_CTL 		0x00000570
-#define TRACE_EN 	BIT(0)
+#define MSR_IA32_RTIT_OUTPUT_BASE	0x00000560
+#define MSR_IA32_RTIT_OUTPUT_MASK_PTRS	0x00000561
+#define MSR_IA32_RTIT_CTL		0x00000570
+#define TRACE_EN	BIT(0)
 /* os, user, cr3 */
-#define TO_PA    	BIT(8)
-#define TSC_EN   	BIT(10)
-#define DIS_RETC 	BIT(11)
-#define MSR_IA32_RTIT_STATUS 		0x00000571
-#define MSR_IA32_CR3_MATCH 		0x00000572
-#define TOPA_STOP 	BIT(4)
-#define TOPA_INT  	BIT(2)
-#define TOPA_END  	BIT(0)
+#define TO_PA		BIT(8)
+#define TSC_EN		BIT(10)
+#define DIS_RETC	BIT(11)
+#define MSR_IA32_RTIT_STATUS		0x00000571
+#define MSR_IA32_CR3_MATCH		0x00000572
+#define TOPA_STOP	BIT(4)
+#define TOPA_INT	BIT(2)
+#define TOPA_END	BIT(0)
 #define TOPA_SIZE_SHIFT 6
 
 static DEFINE_PER_CPU(unsigned long, pt_buffer_cpu);
@@ -120,7 +120,7 @@ out_topa:
 	free_page((unsigned long)topa);
 	__get_cpu_var(topa_cpu) = NULL;
 out_pt_buffer:
-	free_pages(pt_buffer, pt_buffer_order);	
+	free_pages(pt_buffer, pt_buffer_order);
 	__get_cpu_var(pt_buffer_cpu) = 0;
 }
 
@@ -141,7 +141,7 @@ static int simple_pt_mmap(struct file *file, struct vm_area_struct *vma)
 	if (!cpu_online(cpu))
 		return -EIO;
 
-	return remap_pfn_range(vma, vma->vm_start, 
+	return remap_pfn_range(vma, vma->vm_start,
 			       __pa(per_cpu(pt_buffer_cpu, cpu)),
 			       PAGE_SHIFT << pt_buffer_order,
 			       vma->vm_page_prot);
@@ -150,7 +150,7 @@ static int simple_pt_mmap(struct file *file, struct vm_area_struct *vma)
 static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 			    unsigned long arg)
 {
-	switch (cmd) { 
+	switch (cmd) {
 	case SIMPLE_PT_SET_CPU: {
 		unsigned long cpu = arg;
 		if (cpu > NR_CPUS || !cpu_online(cpu))
@@ -182,12 +182,12 @@ static const struct file_operations simple_pt_fops = {
 	.llseek = noop_llseek,
 };
 
-static struct miscdevice simple_pt_miscdev = { 
+static struct miscdevice simple_pt_miscdev = {
 	MISC_DYNAMIC_MINOR,
 	"simple-pt",
 	&simple_pt_fops
-};	
-			       
+};
+
 static int simple_pt_init(void)
 {
 	unsigned a, b, c, d;
@@ -206,7 +206,7 @@ static int simple_pt_init(void)
 		pr_info("No ToPA support\n");
 		return -EIO;
 	}
-	
+
 	on_each_cpu(simple_pt_cpu_init, NULL, 1);
 	if (pt_error) {
 		pr_err("PT initialization failed\n");
@@ -214,10 +214,10 @@ static int simple_pt_init(void)
 		return pt_error;
 	}
 
- 	/* XXX cpu notifier */
+	/* XXX cpu notifier */
 
 	err = misc_register(&simple_pt_miscdev);
-	if (err < 0) { 
+	if (err < 0) {
 		pr_err("Cannot register simple-pt device\n");
 		simple_pt_exit();
 		return err;
@@ -254,14 +254,14 @@ static void simple_pt_exit(void)
 	on_each_cpu(stop_pt, NULL, 1);
 
 	print_hex_dump(KERN_INFO, "pt: ", DUMP_PREFIX_OFFSET, 16, 1,
-			(void *)__get_cpu_var(pt_buffer_cpu), 64, false); 
+			(void *)__get_cpu_var(pt_buffer_cpu), 64, false);
 
 
 	for_each_possible_cpu (cpu) {
 		if (per_cpu(topa_cpu, cpu))
 			free_page((unsigned long)per_cpu(topa_cpu, cpu));
 		if (per_cpu(pt_buffer_cpu, cpu))
-			free_pages(per_cpu(pt_buffer_cpu, cpu), pt_buffer_order);		
+			free_pages(per_cpu(pt_buffer_cpu, cpu), pt_buffer_order);
 	}
 	pr_info("exited\n");
 }

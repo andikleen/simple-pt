@@ -24,7 +24,7 @@ int main(int ac, char **av)
 			err("SIMPLE_PT_GET_SIZE");
 
 		pbuf[i] = mmap(NULL, bufsize, PROT_READ, MAP_PRIVATE, pfds[i], 0);
-		if (pbuf[i] == (void*)-1) 
+		if (pbuf[i] == (void*)-1)
 			err("mmap on simplept");
 	}
 
