@@ -14,6 +14,7 @@
 #include <linux/io.h>
 #include <linux/mm.h>
 #include <linux/uaccess.h>
+#include <linux/sched.h>
 #include <asm/msr.h>
 #include <asm/processor.h>
 
@@ -200,6 +201,14 @@ static struct miscdevice simple_pt_miscdev = {
 
 static void free_all_buffers(void);
 
+static void probe_sched_process_exec(struct task_struct *p, pid_t old_pid,
+				     struct linux_binprm *bprm)
+{
+	u64 cr3;
+	asm volatile("mov %%cr3,%0" : "=r" (cr3));
+	trace_printk("exec pid %d comm %s cr3 %llx\n", current->pid, current->comm, cr3);
+}
+
 static int simple_pt_init(void)
 {
 	unsigned a, b, c, d;
@@ -231,6 +240,10 @@ static int simple_pt_init(void)
 		free_all_buffers();
 		return pt_error;
 	}
+
+	err = register_trace_sched_process_exec(probe_sched_process_exec, NULL);
+	if (err)
+		pr_info("Cannot register exec tracepoint: %d\n", err);
 
 	if (start)
 		pr_info("running with %ld KB buffer\n",
@@ -283,6 +296,7 @@ static void simple_pt_exit(void)
 
 	free_all_buffers();
 	misc_deregister(&simple_pt_miscdev);
+	unregister_trace_sched_process_exec(probe_sched_process_exec, NULL);
 	pr_info("exited\n");
 }
 
