@@ -83,11 +83,11 @@ MODULE_PARM_DESC(filter, "Set bit 0 to trace kernel, bit 1 to trace user space")
 static char comm_filter[100];
 module_param_string(comm_filter, comm_filter, sizeof(comm_filter), 0644);
 MODULE_PARM_DESC(comm_filter, "Process names to set CR3 filter for");
-static bool cr3_filter = false;
-module_param(cr3_filter, bool, 0444);
+static int cr3_filter = 0;
+module_param_cb(cr3_filter, &resync_ops, &cr3_filter, 0644);
 MODULE_PARM_DESC(cr3_filter, "Enable CR3 filter");
-static bool dis_retc = false;
-module_param(dis_retc, bool, 0444);
+static int dis_retc = 0;
+module_param_cb(dis_retc, &resync_ops, &dis_retc, 0644);
 MODULE_PARM_DESC(dis_retc, "Disable return compression");
 
 static u64 rtit_status(void)
