@@ -9,12 +9,9 @@ static int compat_register_trace_sched_process_exec(void (*probe)(void *, struct
 {
 	/* Workaround for newer kernels which use non exported symbols */
 	exec_tp = (struct tracepoint *)kallsyms_lookup_name("__tracepoint_sched_process_exec");
-	if (!exec_tp) {
-		err = -EIO;
-		/* Continue */
-	} else {
-		err = tracepoint_probe_register(exec_tp, (void *)probe, NULL);
-	}
+	if (!exec_tp)
+		return -EIO;
+	return tracepoint_probe_register(exec_tp, (void *)probe, NULL);
 }
 
 static void compat_unregister_trace_sched_process_exec(void (*probe)(void *, struct task_struct *, pid_t, struct linux_binprm *),
