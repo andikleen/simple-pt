@@ -1,7 +1,6 @@
 /* Minimal PT driver. */
 /* Author: Andi Kleen */
 /* Notebook:
-   CR 3 filter
    Make parameters use run time callbacks.
    Make on/off state per cpu
    Handle CPU hotplug properly.
@@ -67,15 +66,29 @@ static DEFINE_PER_CPU(unsigned long, pt_buffer_cpu);
 static DEFINE_PER_CPU(u64 *, topa_cpu);
 static DEFINE_PER_CPU(bool, pt_running);
 static DEFINE_PER_CPU(u64, pt_offset);
-static int pt_buffer_order = 9;
 static int pt_error;
+
+static int pt_buffer_order = 9;
 module_param(pt_buffer_order, int, 0444);
+MODULE_PARM_DESC(pt_buffer_order, "Order of PT buffer size per CPU (2^n pages)");
 static bool start = true;
-module_param_cb(start, &resync_ops, &start, 0444);
+module_param_cb(start, &resync_ops, &start, 0644);
+MODULE_PARM_DESC(start, "Set to 1 to start, or 0 to stop");
 static int hexdump = 0;
 module_param(hexdump, int, 0644);
+MODULE_PARM_DESC(hexdump, "Dump N bytes of PT buffer on unload on one CPU");
 static int filter = 3; /* bit 0 set: trace ring 0, bit 1 set: trace ring 3 */
 module_param_cb(filter, &resync_ops, &filter, 0644);
+MODULE_PARM_DESC(filter, "Set bit 0 to trace kernel, bit 1 to trace user space");
+static char comm_filter[100];
+module_param_string(comm_filter, comm_filter, sizeof(comm_filter), 0644);
+MODULE_PARM_DESC(comm_filter, "Process names to set CR3 filter for");
+static bool cr3_filter = false;
+module_param(cr3_filter, bool, 0444);
+MODULE_PARM_DESC(cr3_filter, "Enable CR3 filter");
+static bool dis_retc = false;
+module_param(dis_retc, bool, 0444);
+MODULE_PARM_DESC(dis_retc, "Disable return compression");
 
 static u64 rtit_status(void)
 {
@@ -98,6 +111,10 @@ static int start_pt(void)
 	if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &old) < 0)
 		return -1;
 	old |= TRACE_EN | TO_PA| TSC_EN | ((filter & 3) << 2);
+	if (cr3_filter)
+		old |= CR3_FILTER;
+	if (dis_retc)
+		old |= DIS_RETC;
 	if (wrmsrl_safe(MSR_IA32_RTIT_CTL, old) < 0)
 		return -1;
 	__get_cpu_var(pt_running) = true;
@@ -237,14 +254,27 @@ static struct miscdevice simple_pt_miscdev = {
 
 static void free_all_buffers(void);
 
+static void set_cr3_filter(void *arg)
+{
+	wrmsrl_safe(MSR_IA32_CR3_MATCH, *(u64 *)arg);
+}
+
 static void probe_sched_process_exec(void *arg,
 				     struct task_struct *p, pid_t old_pid,
 				     struct linux_binprm *bprm)
 {
-	u64 cr3;
-	asm volatile("mov %%cr3,%0" : "=r" (cr3));
-	trace_printk("exec pid %d comm %s cr3 %llx\n", current->pid, current->comm, cr3);
+	if (comm_filter[0] == 0)
+		return;
+	if (!strcmp(current->comm, comm_filter)) {
+		u64 cr3;
+
+		asm volatile("mov %%cr3,%0" : "=r" (cr3));
+		on_each_cpu(set_cr3_filter, &cr3, 1);
+	}
+
 }
+
+static struct tracepoint *exec_tp;
 
 static int simple_pt_init(void)
 {
@@ -276,17 +306,15 @@ static int simple_pt_init(void)
 		return pt_error;
 	}
 
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
-	{
 	/* Workaround for newer kernels which use non exported symbols */
-	struct tracepoint *exec_tp;
 	exec_tp = (struct tracepoint *)kallsyms_lookup_name("__tracepoint_sched_process_exec");
 	if (!exec_tp) {
 		err = -EIO;
 		/* Continue */
 	} else {
 		err = tracepoint_probe_register(exec_tp, (void *)probe_sched_process_exec, NULL);
-	}
 	}
 #else
 	err = register_trace_sched_process_exec(probe_sched_process_exec, NULL);
@@ -345,7 +373,11 @@ static void simple_pt_exit(void)
 
 	free_all_buffers();
 	misc_deregister(&simple_pt_miscdev);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
+	tracepoint_probe_unregister(exec_tp, probe_sched_process_exec, NULL);
+#else
 	unregister_trace_sched_process_exec(probe_sched_process_exec, NULL);
+#endif
 	pr_info("exited\n");
 }
 
