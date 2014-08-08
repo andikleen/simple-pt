@@ -49,6 +49,20 @@
 #define TOPA_END	BIT(0)
 #define TOPA_SIZE_SHIFT 6
 
+static void restart(void);
+
+static int resync_set(const char *val, const struct kernel_param *kp)
+{
+	int ret = param_set_bool(val, kp);
+	restart();
+	return ret;
+}
+
+static struct kernel_param_ops resync_ops = {
+	.set = resync_set,
+	.get = param_get_int,
+};
+
 static DEFINE_PER_CPU(unsigned long, pt_buffer_cpu);
 static DEFINE_PER_CPU(u64 *, topa_cpu);
 static DEFINE_PER_CPU(bool, pt_running);
@@ -57,11 +71,11 @@ static int pt_buffer_order = 9;
 static int pt_error;
 module_param(pt_buffer_order, int, 0444);
 static bool start = true;
-module_param(start, bool, 0444);
-static int hexdump = 64;
-module_param(hexdump, int, 0444);
+module_param_cb(start, &resync_ops, &start, 0444);
+static int hexdump = 0;
+module_param(hexdump, int, 0644);
 static int filter = 3; /* bit 0 set: trace ring 0, bit 1 set: trace ring 3 */
-module_param(filter, int, 0444);
+module_param_cb(filter, &resync_ops, &filter, 0644);
 
 static u64 rtit_status(void)
 {
@@ -95,6 +109,17 @@ static void do_start_pt(void *arg)
 	int cpu = smp_processor_id();
 	if (start_pt() < 0)
 		pr_err("cpu %d, RTIT_CTL enable failed\n", cpu);
+}
+
+static void stop_pt(void *arg);
+
+static void restart(void)
+{
+	static DEFINE_MUTEX(restart_mutex);
+
+	mutex_lock(&restart_mutex);
+	on_each_cpu(start ? do_start_pt : stop_pt, NULL, 1);
+	mutex_unlock(&restart_mutex);
 }
 
 static void simple_pt_cpu_init(void *arg)
@@ -148,7 +173,6 @@ out_pt_buffer:
 	__get_cpu_var(pt_buffer_cpu) = 0;
 }
 
-static void stop_pt(void *arg);
 
 static int simple_pt_mmap(struct file *file, struct vm_area_struct *vma)
 {
