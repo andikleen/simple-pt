@@ -2,7 +2,6 @@
 /* Author: Andi Kleen */
 /* Notebook:
    Make on/off state per cpu
-   Handle CPU hotplug properly.
    Need more locking?
    Add stop-on-kprobe
    Test old kernels
@@ -15,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
+#include <linux/cpu.h>
 #include <linux/moduleparam.h>
 #include <linux/kernel.h>
 #include <linux/gfp.h>
@@ -71,18 +71,18 @@ static bool initialized;
 static int pt_buffer_order = 9;
 module_param(pt_buffer_order, int, 0444);
 MODULE_PARM_DESC(pt_buffer_order, "Order of PT buffer size per CPU (2^n pages)");
-static bool start = true;
+static int start = 0;
 module_param_cb(start, &resync_ops, &start, 0644);
 MODULE_PARM_DESC(start, "Set to 1 to start trace, or 0 to stop");
 static int user = 1;
 module_param_cb(user, &resync_ops, &user, 0644);
-MODULE_PARM_DESC(user, "Set to 1 to trace user space");
+MODULE_PARM_DESC(user, "Set to 0 to not trace user space");
 static int kernel = 1;
 module_param_cb(kernel, &resync_ops, &kernel, 0644);
-MODULE_PARM_DESC(kernel, "Set to 1 to trace kernel space");
+MODULE_PARM_DESC(kernel, "Set to 0 to not trace kernel space");
 static int tsc_en = 1;
 module_param_cb(tsc, &resync_ops, &tsc_en, 0644);
-MODULE_PARM_DESC(tsc, "Set to 1 to trace timing");
+MODULE_PARM_DESC(tsc, "Set to 0 to not trace timing");
 static char comm_filter[100];
 module_param_string(comm_filter, comm_filter, sizeof(comm_filter), 0644);
 MODULE_PARM_DESC(comm_filter, "Process names to set CR3 filter for");
@@ -286,6 +286,24 @@ static void probe_sched_process_exec(void *arg,
 	}
 }
 
+static int simple_pt_cpu(struct notifier_block *nb, unsigned long action,
+			 void *v)
+{
+	switch (action) {
+	case CPU_STARTING:
+		simple_pt_cpu_init(NULL);
+		break;
+	case CPU_DYING:
+		stop_pt(NULL);
+		break;
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cpu_notifier = {
+	.notifier_call = simple_pt_cpu,
+};
+
 static int simple_pt_init(void)
 {
 	unsigned a, b, c, d;
@@ -293,12 +311,12 @@ static int simple_pt_init(void)
 
 	/* check cpuid */
 	cpuid_count(0x07, 0, &a, &b, &c, &d);
-	if ((b & (1 << 25)) == 0) {
+	if ((b & BIT(25)) == 0) {
 		pr_info("No PT support\n");
 		return -EIO;
 	}
 	cpuid_count(0x14, 0, &a, &b, &c, &d);
-	if (!(c & (1 << 0))) {
+	if (!(c & BIT(0))) {
 		pr_info("No ToPA support\n");
 		return -EIO;
 	}
@@ -309,7 +327,10 @@ static int simple_pt_init(void)
 		return err;
 	}
 
+	get_online_cpus();
 	on_each_cpu(simple_pt_cpu_init, NULL, 1);
+	register_cpu_notifier(&cpu_notifier);
+	put_online_cpus();
 	if (pt_error) {
 		pr_err("PT initialization failed\n");
 		err = pt_error;
@@ -325,8 +346,6 @@ static int simple_pt_init(void)
 				(PAGE_SIZE << pt_buffer_order) / 1024);
 
 	initialized = true;
-
-	/* XXX cpu notifier */
 	return 0;
 
 out_buffers:
@@ -360,12 +379,15 @@ static void free_all_buffers(void)
 {
 	int cpu;
 
+	unregister_cpu_notifier(&cpu_notifier);
+	get_online_cpus();
 	for_each_possible_cpu (cpu) {
 		if (per_cpu(topa_cpu, cpu))
 			free_page((unsigned long)per_cpu(topa_cpu, cpu));
 		if (per_cpu(pt_buffer_cpu, cpu))
 			free_pages(per_cpu(pt_buffer_cpu, cpu), pt_buffer_order);
 	}
+	put_online_cpus();
 }
 
 static void simple_pt_exit(void)
