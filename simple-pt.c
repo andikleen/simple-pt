@@ -1,7 +1,6 @@
 /* Minimal PT driver. */
 /* Author: Andi Kleen */
 /* Notebook:
-   Make parameters use run time callbacks.
    Make on/off state per cpu
    Handle CPU hotplug properly.
    Need more locking?
@@ -271,7 +270,6 @@ static void probe_sched_process_exec(void *arg,
 		asm volatile("mov %%cr3,%0" : "=r" (cr3));
 		on_each_cpu(set_cr3_filter, &cr3, 1);
 	}
-
 }
 
 static int simple_pt_init(void)
