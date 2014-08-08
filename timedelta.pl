@@ -3,7 +3,7 @@
 # ptdump file | ./timedelta.pl 
 
 # XXX
-$freq=2.4;
+$freq=1.8;
 
 if (/tsc/) {
 	@n=split;
