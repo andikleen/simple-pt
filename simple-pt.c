@@ -51,7 +51,7 @@ static void restart(void);
 
 static int resync_set(const char *val, const struct kernel_param *kp)
 {
-	int ret = param_set_bool(val, kp);
+	int ret = param_set_int(val, kp);
 	restart();
 	return ret;
 }
@@ -66,6 +66,7 @@ static DEFINE_PER_CPU(u64 *, topa_cpu);
 static DEFINE_PER_CPU(bool, pt_running);
 static DEFINE_PER_CPU(u64, pt_offset);
 static int pt_error;
+static bool initialized;
 
 static int pt_buffer_order = 9;
 module_param(pt_buffer_order, int, 0444);
@@ -133,8 +134,12 @@ static void restart(void)
 {
 	static DEFINE_MUTEX(restart_mutex);
 
+	if (!initialized)
+		return;
+
 	mutex_lock(&restart_mutex);
 	on_each_cpu(start ? do_start_pt : stop_pt, NULL, 1);
+	pr_info("restarted\n");
 	mutex_unlock(&restart_mutex);
 }
 
@@ -298,8 +303,8 @@ static int simple_pt_init(void)
 	on_each_cpu(simple_pt_cpu_init, NULL, 1);
 	if (pt_error) {
 		pr_err("PT initialization failed\n");
-		free_all_buffers();
-		return pt_error;
+		err = pt_error;
+		goto out_buffers;
 	}
 
 	err = compat_register_trace_sched_process_exec(probe_sched_process_exec, NULL);
@@ -310,8 +315,15 @@ static int simple_pt_init(void)
 				start ? "running" : "loaded",
 				(PAGE_SIZE << pt_buffer_order) / 1024);
 
+	initialized = true;
+
 	/* XXX cpu notifier */
 	return 0;
+
+out_buffers:
+	free_all_buffers();
+	misc_deregister(&simple_pt_miscdev);
+	return err;
 }
 
 static void stop_pt(void *arg)
