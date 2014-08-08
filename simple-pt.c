@@ -26,6 +26,8 @@
 #include <trace/events/sched.h>
 #include <asm/msr.h>
 #include <asm/processor.h>
+#define CREATE_TRACE_POINTS
+#include "pttp.h"
 
 #include "compat.h"
 #include "simple-pt.h"
@@ -276,14 +278,15 @@ static void probe_sched_process_exec(void *arg,
 				     struct task_struct *p, pid_t old_pid,
 				     struct linux_binprm *bprm)
 {
+	u64 cr3;
+
+	asm volatile("mov %%cr3,%0" : "=r" (cr3));
+	trace_exec_cr3(cr3);
+
 	if (comm_filter[0] == 0)
 		return;
-	if (!strcmp(current->comm, comm_filter)) {
-		u64 cr3;
-
-		asm volatile("mov %%cr3,%0" : "=r" (cr3));
+	if (!strcmp(current->comm, comm_filter))
 		on_each_cpu(set_cr3_filter, &cr3, 1);
-	}
 }
 
 static int simple_pt_cpu(struct notifier_block *nb, unsigned long action,
