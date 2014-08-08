@@ -73,13 +73,16 @@ module_param(pt_buffer_order, int, 0444);
 MODULE_PARM_DESC(pt_buffer_order, "Order of PT buffer size per CPU (2^n pages)");
 static bool start = true;
 module_param_cb(start, &resync_ops, &start, 0644);
-MODULE_PARM_DESC(start, "Set to 1 to start, or 0 to stop");
-static int hexdump = 0;
-module_param(hexdump, int, 0644);
-MODULE_PARM_DESC(hexdump, "Dump N bytes of PT buffer on unload on one CPU");
-static int filter = 3; /* bit 0 set: trace ring 0, bit 1 set: trace ring 3 */
-module_param_cb(filter, &resync_ops, &filter, 0644);
-MODULE_PARM_DESC(filter, "Set bit 0 to trace kernel, bit 1 to trace user space");
+MODULE_PARM_DESC(start, "Set to 1 to start trace, or 0 to stop");
+static int user = 1;
+module_param_cb(user, &resync_ops, &user, 0644);
+MODULE_PARM_DESC(user, "Set to 1 to trace user space");
+static int kernel = 1;
+module_param_cb(kernel, &resync_ops, &kernel, 0644);
+MODULE_PARM_DESC(kernel, "Set to 1 to trace kernel space");
+static int tsc_en = 1;
+module_param_cb(tsc, &resync_ops, &tsc_en, 0644);
+MODULE_PARM_DESC(tsc, "Set to 1 to trace timing");
 static char comm_filter[100];
 module_param_string(comm_filter, comm_filter, sizeof(comm_filter), 0644);
 MODULE_PARM_DESC(comm_filter, "Process names to set CR3 filter for");
@@ -100,7 +103,7 @@ static u64 rtit_status(void)
 
 static int start_pt(void)
 {
-	u64 old;
+	u64 val;
 
 	if (__get_cpu_var(pt_running))
 		return 0;
@@ -108,14 +111,20 @@ static int start_pt(void)
 	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(topa_cpu)));
 	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
 
-	if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &old) < 0)
+	if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &val) < 0)
 		return -1;
-	old |= TRACE_EN | TO_PA| TSC_EN | ((filter & 3) << 2);
+	val |= TRACE_EN | TO_PA;
+	if (tsc_en)
+		val |= TSC_EN;
+	if (kernel)
+		val |= CTL_OS;
+	if (user)
+		val |= CTL_USER;
 	if (cr3_filter)
-		old |= CR3_FILTER;
+		val |= CR3_FILTER;
 	if (dis_retc)
-		old |= DIS_RETC;
-	if (wrmsrl_safe(MSR_IA32_RTIT_CTL, old) < 0)
+		val |= DIS_RETC;
+	if (wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
 		return -1;
 	__get_cpu_var(pt_running) = true;
 	return 0;
@@ -362,11 +371,6 @@ static void free_all_buffers(void)
 static void simple_pt_exit(void)
 {
 	on_each_cpu(stop_pt, NULL, 1);
-
-	if (hexdump)
-		print_hex_dump(KERN_INFO, "pt: ", DUMP_PREFIX_OFFSET, 16, 1,
-			(void *)__get_cpu_var(pt_buffer_cpu), hexdump, false);
-
 	free_all_buffers();
 	misc_deregister(&simple_pt_miscdev);
 	compat_unregister_trace_sched_process_exec(probe_sched_process_exec, NULL);
