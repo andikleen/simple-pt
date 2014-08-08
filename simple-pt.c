@@ -14,7 +14,6 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/module.h>
-#include <linux/version.h>
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
 #include <linux/moduleparam.h>
@@ -29,6 +28,7 @@
 #include <asm/msr.h>
 #include <asm/processor.h>
 
+#include "compat.h"
 #include "simple-pt.h"
 
 #define MSR_IA32_RTIT_OUTPUT_BASE	0x00000560
@@ -274,8 +274,6 @@ static void probe_sched_process_exec(void *arg,
 
 }
 
-static struct tracepoint *exec_tp;
-
 static int simple_pt_init(void)
 {
 	unsigned a, b, c, d;
@@ -306,19 +304,7 @@ static int simple_pt_init(void)
 		return pt_error;
 	}
 
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
-	/* Workaround for newer kernels which use non exported symbols */
-	exec_tp = (struct tracepoint *)kallsyms_lookup_name("__tracepoint_sched_process_exec");
-	if (!exec_tp) {
-		err = -EIO;
-		/* Continue */
-	} else {
-		err = tracepoint_probe_register(exec_tp, (void *)probe_sched_process_exec, NULL);
-	}
-#else
-	err = register_trace_sched_process_exec(probe_sched_process_exec, NULL);
-#endif
+	err = compat_register_trace_sched_process_exec(probe_sched_process_exec, NULL);
 	if (err)
 		pr_info("Cannot register exec tracepoint: %d\n", err);
 
@@ -373,11 +359,7 @@ static void simple_pt_exit(void)
 
 	free_all_buffers();
 	misc_deregister(&simple_pt_miscdev);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
-	tracepoint_probe_unregister(exec_tp, probe_sched_process_exec, NULL);
-#else
-	unregister_trace_sched_process_exec(probe_sched_process_exec, NULL);
-#endif
+	compat_unregister_trace_sched_process_exec(probe_sched_process_exec, NULL);
 	pr_info("exited\n");
 }
 
