@@ -122,8 +122,11 @@ static int start_pt(void)
 		val |= CTL_OS;
 	if (user)
 		val |= CTL_USER;
-	if (cr3_filter)
+	if (cr3_filter) {
+		if (!(val & CR3_FILTER))
+			wrmsrl_safe(MSR_IA32_CR3_FILTER, 0ULL);
 		val |= CR3_FILTER;
+	}
 	if (dis_retc)
 		val |= DIS_RETC;
 	if (wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
@@ -148,7 +151,6 @@ static void restart(void)
 
 	mutex_lock(&restart_mutex);
 	on_each_cpu(start ? do_start_pt : stop_pt, NULL, 1);
-	pr_info("restarted\n");
 	mutex_unlock(&restart_mutex);
 }
 
