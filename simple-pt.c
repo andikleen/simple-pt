@@ -271,7 +271,8 @@ static void free_all_buffers(void);
 
 static void set_cr3_filter(void *arg)
 {
-	wrmsrl_safe(MSR_IA32_CR3_MATCH, *(u64 *)arg);
+	if (wrmsrl_safe(MSR_IA32_CR3_MATCH, *(u64 *)arg) < 0)
+		pr_err("cpu %d, cannot set cr3 filter\n", smp_processor_id());
 }
 
 static void probe_sched_process_exec(void *arg,
@@ -285,8 +286,10 @@ static void probe_sched_process_exec(void *arg,
 
 	if (comm_filter[0] == 0)
 		return;
-	if (!strcmp(current->comm, comm_filter))
+	if (!strcmp(current->comm, comm_filter)) {
+		pr_debug("arming cr3 filter %llx for %s\n", cr3, current->comm);
 		on_each_cpu(set_cr3_filter, &cr3, 1);
+	}
 }
 
 static int simple_pt_cpu(struct notifier_block *nb, unsigned long action,
