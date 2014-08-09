@@ -1,14 +1,20 @@
-#!/bin/sh
+#!/bin/bash
 # simple pt trace a command
-# sptcmd [-c comm-to-filer] cmd
+# sptcmd [-k] [-c comm-to-filer] cmd
+# -k trace kernel too
 
-if [ "$1" = "-c" ] ; then
-	shift
-	COMM=$1
-	shift
-else
-	COMM=$(basename $1)
-fi
+while getopts "c:k" opt ; do
+	case "$opt" in
+	c) COMM=$OPTARG ;;
+	k) KERNEL=1 ;;
+	\?) exit 1 ;;
+	*) break ;;
+	esac
+done
+shift $((OPTIND - 1))
+
+COMM=${COMM:-$(basename $1)}
+KERNEL=${KERNEL:-0}
 
 if [ -r simple-pt.ko ] ; then
 	/sbin/insmod simple-pt.ko start=0
@@ -18,13 +24,13 @@ fi
 C=/sys/module/simple_pt/parameters
 echo $COMM > $C/comm_filter
 echo 1 > $C/cr3_filter
-echo 0 > $C/kernel
+echo $KERNEL > $C/kernel
 echo 1 > $C/user
 T=/sys/kernel/debug/tracing
 echo 1 > $T/events/pttp/exec_cr3/enable
 echo > $T/trace
 echo 1 > $C/start
-"$@"
+echo "$@"
 echo 0 > $C/start
 echo 0 > $T/events/pttp/exec_cr3/enable
 ./sptdump
