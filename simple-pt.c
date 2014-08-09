@@ -280,12 +280,16 @@ static void probe_sched_process_exec(void *arg,
 				     struct linux_binprm *bprm)
 {
 	u64 cr3;
+	char *s;
 
 	asm volatile("mov %%cr3,%0" : "=r" (cr3));
 	trace_exec_cr3(cr3);
 
 	if (comm_filter[0] == 0)
 		return;
+	s = strchr(comm_filter, '\n');
+	if (s)
+		*s = 0;
 	if (!strcmp(current->comm, comm_filter)) {
 		pr_debug("arming cr3 filter %llx for %s\n", cr3, current->comm);
 		on_each_cpu(set_cr3_filter, &cr3, 1);
