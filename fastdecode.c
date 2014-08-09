@@ -1,3 +1,4 @@
+/* Simple PT dumper */
 #define _GNU_SOURCE 1
 #include <sys/mman.h>
 #include <sys/fcntl.h>
@@ -38,7 +39,7 @@ static char psb[16] = {
 #define LEFT(x) ((end - p) >= (x))
 
 /* Caller must have checked length */
-u64 get_ip_val(unsigned char **pp, unsigned char *end, int len, uint64_t *last_ip)
+static u64 get_ip_val(unsigned char **pp, unsigned char *end, int len, uint64_t *last_ip)
 {
 	unsigned char *p = *pp;
 	u64 v = *last_ip;
@@ -50,13 +51,14 @@ u64 get_ip_val(unsigned char **pp, unsigned char *end, int len, uint64_t *last_i
 		return 0; /* out of context */
 	}
 	if (len < 4) {
-		len *= 2;
 		if (!LEFT(len)) {
 			*last_ip = 0;
 			return 0; /* XXX error */
 		}
-		for (i = 0; i < len; i++, shift += 8)
-			v = (v & ~(0xffULL << shift)) | (((uint64_t)*p++) << shift);
+		for (i = 0; i < len; i++, shift += 16, p += 2) {
+			uint64_t b = *(uint16_t *)p;
+			v = (v & ~(0xffffULL << shift)) | (b << shift);
+		}
 		v = ((int64_t)(v << (64 - 48))) >> (64 - 48); /* sign extension */
 	} else {
 		return 0; /* XXX error */
@@ -67,7 +69,7 @@ u64 get_ip_val(unsigned char **pp, unsigned char *end, int len, uint64_t *last_i
 }
 
 /* Caller must have checked length */
-u64 get_val(unsigned char **pp, int len)
+static u64 get_val(unsigned char **pp, int len)
 {
 	unsigned char *p = *pp;
 	u64 v = 0;
@@ -92,6 +94,43 @@ static void print_unknown(unsigned char *p, unsigned char *end, unsigned char *m
 	printf("\n");
 }
 
+static void print_tnt_byte(unsigned char v, int max)
+{
+	int i;
+	for (i = max - 1; i >= 0; i--)
+		if (v & BIT(i))
+			putchar('!');
+		else
+			putchar('.');
+}
+
+static void print_tnt_stop(unsigned char v)
+{
+	int j;
+	for (j = 7; j >= 0; j--) {
+		if (v & BIT(j))
+			break;
+	}
+	print_tnt_byte(v, j);
+}
+
+static void print_multi_tnt(unsigned char *p, int len)
+{
+	int i;
+
+	for (i = len - 1; i >= 0 && p[i] == 0; i--)
+		;
+	if (i >= 0) {
+		print_tnt_stop(p[i]);
+		i--;
+	} else {
+		printf("??? no stop bit");
+		return;
+	}
+	for (; i >= 0; i--)
+		print_tnt_byte(p[i], 8);
+}
+
 void decode_buffer(unsigned char *map, size_t len)
 {
 	unsigned char *end = map + len;
@@ -108,7 +147,9 @@ void decode_buffer(unsigned char *map, size_t len)
 
 			if (*p == 2 && LEFT(2)) {
 				if (p[1] == 0xa3 && LEFT(8)) { /* long TNT */
-					printf("tnt64\n");
+					printf("tnt64 ");
+					print_multi_tnt(p + 2, 6);
+					printf("\n");
 					p += 8;
 					continue;
 				}
@@ -145,7 +186,9 @@ void decode_buffer(unsigned char *map, size_t len)
 					p++;
 					continue;
 				}
-				printf("tnt8\n");
+				printf("tnt8 ");
+				print_tnt_stop(*p >> 1);
+				printf("\n");
 				p++;
 				continue;
 			}
