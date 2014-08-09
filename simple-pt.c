@@ -94,6 +94,9 @@ MODULE_PARM_DESC(cr3_filter, "Enable CR3 filter");
 static int dis_retc = 0;
 module_param_cb(dis_retc, &resync_ops, &dis_retc, 0644);
 MODULE_PARM_DESC(dis_retc, "Disable return compression");
+static bool clear_on_start = true;
+module_param(clear_on_start, bool, 0644);
+MODULE_PARM_DESC(clear_on_start, "Clear PT buffer before start");
 
 static DEFINE_MUTEX(restart_mutex);
 
@@ -111,9 +114,15 @@ static int start_pt(void)
 
 	if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &val) < 0)
 		return -1;
+
 	/* Disable trace for reconfiguration */
 	if (val & TRACE_EN)
 		wrmsrl_safe(MSR_IA32_RTIT_CTL, val & ~TRACE_EN);
+
+	if (clear_on_start && !(val & TRACE_EN)) {
+		memset((void *)__get_cpu_var(pt_buffer_cpu), 0, PAGE_SIZE << pt_buffer_order);
+		wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
+	}
 
 	val |= TRACE_EN | TO_PA;
 	if (tsc_en)
