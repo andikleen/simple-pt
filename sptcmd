@@ -3,7 +3,7 @@
 # sptcmd [-k] [-c comm-to-filter] cmd
 # -k trace kernel too
 
-while getopts "c:k" opt ; do
+while getopts "c:kt" opt ; do
 	case "$opt" in
 	c) COMM=$OPTARG ;;
 	k) KERNEL=1 ;;
