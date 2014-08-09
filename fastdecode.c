@@ -1,0 +1,225 @@
+#define _GNU_SOURCE 1
+#include <sys/mman.h>
+#include <sys/fcntl.h>
+#include <sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <unistd.h>
+
+#define BIT(x) (1U << (x))
+#define round_up(x, y) (((x) + (y) - 1) & ~((y) - 1))
+
+typedef unsigned long long u64;
+
+void *mapfile(char *fn, size_t *size)
+{
+	int fd = open(fn, O_RDWR);
+	if (fd < 0)
+		return NULL;
+	struct stat st;
+	void *map = (void *)-1L;
+	if (fstat(fd, &st) >= 0) {
+		*size = st.st_size;
+		map = mmap(NULL, round_up(st.st_size, getpagesize()),
+			   PROT_READ|PROT_WRITE,
+			   MAP_PRIVATE, fd, 0);
+	}
+	close(fd);
+	return map != (void *)-1L ? map : NULL;
+}
+
+static char psb[16] = {
+	0x02, 0x82, 0x02, 0x82, 0x02, 0x82, 0x02, 0x82,
+	0x02, 0x82, 0x02, 0x82, 0x02, 0x82, 0x02, 0x82
+};
+
+#define LEFT(x) ((end - p) >= (x))
+
+/* Caller must have checked length */
+u64 get_ip_val(unsigned char **pp, unsigned char *end, int len, uint64_t *last_ip)
+{
+	unsigned char *p = *pp;
+	u64 v = *last_ip;
+	int i;
+	unsigned shift = 0;
+
+	if (len == 0) {
+		*last_ip = 0;
+		return 0; /* out of context */
+	}
+	if (len < 4) {
+		len *= 2;
+		if (!LEFT(len)) {
+			*last_ip = 0;
+			return 0; /* XXX error */
+		}
+		for (i = 0; i < len; i++, shift += 8)
+			v = (v & ~(0xffULL << shift)) | (((uint64_t)*p++) << shift);
+		v = ((int64_t)(v << (64 - 48))) >> (64 - 48); /* sign extension */
+	} else {
+		return 0; /* XXX error */
+	}
+	*pp = p;
+	*last_ip = v;
+	return v;
+}
+
+/* Caller must have checked length */
+u64 get_val(unsigned char **pp, int len)
+{
+	unsigned char *p = *pp;
+	u64 v = 0;
+	int i;
+	unsigned shift = 0;
+
+	for (i = 0; i < len; i++, shift += 8)
+		v |= ((uint64_t)(*p++)) << shift;
+	*pp = p;
+	return v;
+}
+
+static void print_unknown(unsigned char *p, unsigned char *end, unsigned char *map)
+{
+	printf("unknown packet: ");
+	unsigned len = end - p;
+	int i;
+	if (len > 16)
+		len = 16;
+	for (i = 0; i < len; i++)
+		printf("%02x ", p[i]);
+	printf("\n");
+}
+
+void decode_buffer(unsigned char *map, size_t len)
+{
+	unsigned char *end = map + len;
+	unsigned char *p;
+	uint64_t last_ip = 0;
+
+	for (p = map; p < end; ) {
+		/* look for PSB */
+		p = memmem(p, end - p, psb, 16);
+		if (!p)
+			break;
+		while (p < end) {
+			printf("%lx\t", p - map);
+
+			if (*p == 2 && LEFT(2)) {
+				if (p[1] == 0xa3 && LEFT(8)) { /* long TNT */
+					printf("tnt64\n");
+					p += 8;
+					continue;
+				}
+				if (p[1] == 0x43 && LEFT(8)) { /* PIP */
+					p += 2;
+					printf("pip\t%llx\n", (get_val(&p, 6) >> 1) << 5);
+					continue;
+				}
+				if (p[1] == 3 && LEFT(4) && p[3] == 0) { /* CBR */
+					printf("cbr\t%u\n", p[2]);
+					p += 4;
+					continue;
+				}
+				if (p[1] == 0b11110011 && LEFT(8)) { /* OVF */
+					printf("ovf\n");
+					p += 8;
+					continue;
+				}
+				if (p[1] == 0x82 && LEFT(16) && !memcmp(p, psb, 16)) { /* PSB */
+					printf("psb\n");
+					p += 16;
+					continue;
+				}
+				if (p[1] == 0b100011) { /* PSBEND */
+					printf("psbend\n");
+					p += 2;
+					continue;
+				}
+			}
+
+			if ((*p & BIT(0)) == 0) {
+				if (*p == 0) { /* PAD */
+					printf("pad\n");
+					p++;
+					continue;
+				}
+				printf("tnt8\n");
+				p++;
+				continue;
+			}
+
+			char *name = NULL;
+			switch (*p & 0x1f) {
+			case 0xd:
+				name = "tip";
+				break;
+			case 0x11:
+				name = "tip.pge";
+				break;
+			case 0x1:
+				name = "tip.pgd";
+				break;
+			case 0x1d:
+				name = "fup";
+				break;
+			}
+			if (name) {
+				int ipl = *p >> 5;
+				p++;
+				printf("%s\t%d: %llx\n", name, ipl, get_ip_val(&p, end, ipl, &last_ip));
+				continue;
+			}
+			if (*p == 0x99 && LEFT(2)) { /* MODE */
+				if ((p[1] >> 5) == 1) {
+					printf("mode.tsx");
+					if (p[1] & BIT(0))
+						printf(" intx");
+					if (p[1] & BIT(1))
+						printf(" txabort");
+					printf("\n");
+					p += 2;
+					continue;
+				} else if ((p[1] >> 5) == 0) {
+					printf("mode.exec");
+					printf(" lma=%d", (p[1] & BIT(0)));
+					printf(" cs.d=%d", !!(p[1] & BIT(1)));
+					printf("\n");
+					p += 2;
+					continue;
+				}
+			}
+
+			if (*p == 0x19 && LEFT(8)) {  /* TSC */
+				p++;
+				printf("tsc\t%llx\n", get_val(&p, 7));
+				continue;
+			}
+
+			print_unknown(p, end, map);
+			break;
+		}
+	}
+	if (p < end)
+		printf("%lu bytes undecoded\n", end - p);
+}
+
+void do_file(char *fn)
+{
+	size_t len;
+	unsigned char *map = mapfile(fn, &len);
+	if (!map) {
+		perror(fn);
+		return;
+	}
+	decode_buffer(map, len);
+	munmap(map, round_up(len, getpagesize()));
+}
+
+int main(int ac, char **av)
+{
+	while (*++av)
+		do_file(*av);
+	return 0;
+}

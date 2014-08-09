@@ -16,3 +16,6 @@ clean:
 
 sptdump: CFLAGS := -g -Wall
 sptdump: sptdump.o
+
+fastdecode: CFLAGS := -g -Wall
+fastdecode: fastdecode.o
