@@ -232,10 +232,8 @@ static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 	}
 	case SIMPLE_PT_START:
 	case SIMPLE_PT_STOP:
-		mutex_lock(&restart_mutex);
 		start = (cmd == SIMPLE_PT_START);
 		restart();
-		mutex_unlock(&restart_mutex);
 		return 0;
 	case SIMPLE_PT_GET_SIZE:
 		return put_user(PAGE_SIZE << pt_buffer_order, (int *)arg);
