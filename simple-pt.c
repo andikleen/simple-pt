@@ -95,6 +95,8 @@ static int dis_retc = 0;
 module_param_cb(dis_retc, &resync_ops, &dis_retc, 0644);
 MODULE_PARM_DESC(dis_retc, "Disable return compression");
 
+static DEFINE_MUTEX(restart_mutex);
+
 static u64 rtit_status(void)
 {
 	u64 status;
@@ -110,11 +112,17 @@ static int start_pt(void)
 	if (__get_cpu_var(pt_running))
 		return 0;
 
-	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(topa_cpu)));
-	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
-
 	if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &val) < 0)
 		return -1;
+	/* Disable trace for reconfiguration */
+	if (val & TRACE_EN)
+		wrmsrl_safe(MSR_IA32_RTIT_CTL, val & ~TRACE_EN);
+
+	if (!initialized) {
+		wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(topa_cpu)));
+		wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
+	}
+
 	val |= TRACE_EN | TO_PA;
 	if (tsc_en)
 		val |= TSC_EN;
@@ -143,8 +151,6 @@ static void stop_pt(void *arg);
 
 static void restart(void)
 {
-	static DEFINE_MUTEX(restart_mutex);
-
 	if (!initialized)
 		return;
 
@@ -271,8 +277,16 @@ static void free_all_buffers(void);
 
 static void set_cr3_filter(void *arg)
 {
+	u64 val;
+
+	if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &val) < 0)
+		return;
+	if ((val & TRACE_EN) && wrmsrl_safe(MSR_IA32_RTIT_CTL, val & ~TRACE_EN) < 0)
+		return;
 	if (wrmsrl_safe(MSR_IA32_CR3_MATCH, *(u64 *)arg) < 0)
 		pr_err("cpu %d, cannot set cr3 filter\n", smp_processor_id());
+	if ((val & TRACE_EN) && wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
+		return;
 }
 
 static void probe_sched_process_exec(void *arg,
@@ -292,7 +306,9 @@ static void probe_sched_process_exec(void *arg,
 		*s = 0;
 	if (!strcmp(current->comm, comm_filter)) {
 		pr_debug("arming cr3 filter %llx for %s\n", cr3, current->comm);
+		mutex_lock(&restart_mutex);
 		on_each_cpu(set_cr3_filter, &cr3, 1);
+		mutex_unlock(&restart_mutex);
 	}
 }
 
