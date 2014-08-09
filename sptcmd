@@ -1,0 +1,15 @@
+#!/bin/sh
+# simple pt trace a command
+
+/sbin/insmod simple-pt.ko start=0
+C=/sys/modules/simple_pt/parameters/
+echo $(basename $1) > $C/comm_filter
+echo 1 > $C/cr3_filter
+echo 0 > $C/kernel
+echo 1 > $C/user
+T=/sys/kernel/debug/tracing
+echo 1 > $T/events/pttp/exec_cr3/enable
+echo > $T/trace
+./sptdump "$@"
+echo 0 > $T/events/pttp/exec_cr3/enable
+grep -v '^#' $T/trace > sideband
