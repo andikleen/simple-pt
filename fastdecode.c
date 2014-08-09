@@ -120,13 +120,17 @@ void decode_buffer(unsigned char *map, size_t len)
 {
 	unsigned char *end = map + len;
 	unsigned char *p;
+	size_t skipped = 0;
+	size_t overflow = 0;
 	uint64_t last_ip = 0;
 
 	for (p = map; p < end; ) {
+		unsigned char *prev = p;
 		/* look for PSB */
 		p = memmem(p, end - p, psb, 16);
 		if (!p)
 			break;
+		skipped += p - prev;
 		while (p < end) {
 			printf("%lx\t", p - map);
 
@@ -151,6 +155,7 @@ void decode_buffer(unsigned char *map, size_t len)
 				if (p[1] == 0b11110011 && LEFT(8)) { /* OVF */
 					printf("ovf\n");
 					p += 8;
+					overflow++;
 					continue;
 				}
 				if (p[1] == 0x82 && LEFT(16) && !memcmp(p, psb, 16)) { /* PSB */
@@ -229,8 +234,10 @@ void decode_buffer(unsigned char *map, size_t len)
 			break;
 		}
 	}
-	if (p < end)
-		printf("%lu bytes undecoded\n", end - p);
+	if (p < end || skipped)
+		printf("%lu bytes undecoded\n", (end - p) + skipped);
+	if (overflow)
+		printf("%lu overflows\n", overflow);
 }
 
 void do_file(char *fn)
