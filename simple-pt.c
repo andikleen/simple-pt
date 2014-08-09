@@ -35,8 +35,8 @@
 #define MSR_IA32_RTIT_OUTPUT_MASK_PTRS	0x00000561
 #define MSR_IA32_RTIT_CTL		0x00000570
 #define TRACE_EN	BIT(0)
-#define CTL_OS		BIT(1)
-#define CTL_USER	BIT(2)
+#define CTL_OS		BIT(2)
+#define CTL_USER	BIT(3)
 #define CR3_FILTER	BIT(7)
 #define TO_PA		BIT(8)
 #define TSC_EN		BIT(10)
