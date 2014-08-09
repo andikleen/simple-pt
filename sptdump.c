@@ -12,20 +12,12 @@
 
 #define err(x) perror(x), exit(1)
 
-static void handle_usr1(int sig)
-{
-}
-
 int main(int ac, char **av)
 {
 	int ncpus = sysconf(_SC_NPROCESSORS_CONF);
 	int pfds[ncpus];
 	int bufsize = 0;
 	char *pbuf[ncpus];
-
-	signal(SIGUSR1, handle_usr1);
-	signal(SIGINT, handle_usr1);
-	signal(SIGCHLD, SIG_IGN);
 
 	int i;
 	for (i = 0; i < ncpus; i++) {
@@ -37,6 +29,7 @@ int main(int ac, char **av)
 			close(pfds[i]);
 			pfds[i] = -1;
 			perror("SIMPLE_PT_SET_CPU");
+			/* CPU likely off line */
 			continue;
 		}
 
@@ -46,33 +39,6 @@ int main(int ac, char **av)
 		pbuf[i] = mmap(NULL, bufsize, PROT_READ, MAP_PRIVATE, pfds[i], 0);
 		if (pbuf[i] == (void*)-1)
 			err("mmap on simplept");
-	}
-
-	int ctlfd = open("/dev/simple-pt", O_RDONLY | O_CLOEXEC);
-	if (ctlfd < 0)
-		err("open /dev/simple-pt");
-
-	if (ioctl(ctlfd, SIMPLE_PT_START, 0) < 0)
-		perror("SIMPLE_PT_START");
-	printf("started\n");
-
-	if (av[1]) {
-		if (fork() == 0) {
-			if (execvp(av[1], av + 1) < 0)
-				perror("execvp");
-			_exit(1);
-		}
-		wait(NULL);
-	} else
-		pause();
-
-	printf("stopped\n");
-	if (ioctl(ctlfd, SIMPLE_PT_STOP, 0) < 0)
-		perror("SIMPLE_PT_STOP");
-
-	for (i = 0; i < ncpus; i++) {
-		if (pfds[i] < 0)
-			continue;
 
 		char fn[100];
 		snprintf(fn, sizeof fn, "ptout.%d", i);

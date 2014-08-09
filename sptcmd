@@ -23,6 +23,9 @@ echo 1 > $C/user
 T=/sys/kernel/debug/tracing
 echo 1 > $T/events/pttp/exec_cr3/enable
 echo > $T/trace
-./sptdump "$@"
+echo 1 > $C/start
+"$@"
+echo 0 > $C/start
 echo 0 > $T/events/pttp/exec_cr3/enable
+./sptdump
 grep -v '^#' $T/trace > sideband

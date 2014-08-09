@@ -230,11 +230,6 @@ static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 		file->private_data = (void *)cpu;
 		return 0;
 	}
-	case SIMPLE_PT_START:
-	case SIMPLE_PT_STOP:
-		start = (cmd == SIMPLE_PT_START);
-		restart();
-		return 0;
 	case SIMPLE_PT_GET_SIZE:
 		return put_user(PAGE_SIZE << pt_buffer_order, (int *)arg);
 	case SIMPLE_PT_GET_OFFSET: {
