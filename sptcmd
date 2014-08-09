@@ -24,15 +24,15 @@ fi
 C=/sys/module/simple_pt/parameters
 if [ -n "$COMM" ] ; then
 	echo $COMM > $C/comm_filter
+	echo 1 > $C/cr3_filter
 fi
-echo 1 > $C/cr3_filter
 echo $KERNEL > $C/kernel
 echo 1 > $C/user
 T=/sys/kernel/debug/tracing
 echo 1 > $T/events/pttp/exec_cr3/enable
 echo > $T/trace
 echo 1 > $C/start
-echo "$@"
+"$@"
 echo 0 > $C/start
 echo 0 > $T/events/pttp/exec_cr3/enable
 ./sptdump

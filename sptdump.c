@@ -1,4 +1,6 @@
 /* Dump simple-pt buffers to files (ptout.cpu) */
+/* sptdump [filenameprefix] */
+/* Always adds .N for the different cpus */
 #include "simple-pt.h"
 #include <unistd.h>
 #include <stdio.h>
@@ -40,8 +42,8 @@ int main(int ac, char **av)
 		if (pbuf[i] == (void*)-1)
 			err("mmap on simplept");
 
-		char fn[100];
-		snprintf(fn, sizeof fn, "ptout.%d", i);
+		char fn[1024];
+		snprintf(fn, sizeof fn, "%s.%d", av[1] ? av[1] : "ptout", i);
 		int fd = open(fn, O_WRONLY|O_CREAT, 0644);
 		if (fd < 0)
 			err("Opening output file");

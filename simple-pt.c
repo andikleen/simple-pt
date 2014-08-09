@@ -2,7 +2,6 @@
 /* Author: Andi Kleen */
 /* Notebook:
    Make on/off state per cpu
-   Need more locking?
    Add stop-on-kprobe
    Test old kernels
    */
