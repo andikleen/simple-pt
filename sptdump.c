@@ -48,7 +48,11 @@ int main(int ac, char **av)
 			err("mmap on simplept");
 	}
 
-	if (ioctl(pfds[0], SIMPLE_PT_START, 0) < 0)
+	int ctlfd = open("/dev/simple-pt", O_RDONLY);
+	if (ctlfd < 0)
+		err("open /dev/simple-pt");
+
+	if (ioctl(ctlfd, SIMPLE_PT_START, 0) < 0)
 		perror("SIMPLE_PT_START");
 	printf("started\n");
 
@@ -63,7 +67,7 @@ int main(int ac, char **av)
 		pause();
 
 	printf("stopped\n");
-	if (ioctl(pfds[0], SIMPLE_PT_STOP, 0) < 0)
+	if (ioctl(ctlfd, SIMPLE_PT_STOP, 0) < 0)
 		perror("SIMPLE_PT_STOP");
 
 	for (i = 0; i < ncpus; i++) {
