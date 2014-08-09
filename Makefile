@@ -16,6 +16,8 @@ clean:
 
 sptdump: CFLAGS := -g -Wall
 sptdump: sptdump.o
+sptdump.o: sptdump.c simple-pt.h map.h
+map.o: map.c map.h
 
 fastdecode: CFLAGS := -g -Wall
 fastdecode: fastdecode.o map.o
