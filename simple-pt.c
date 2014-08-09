@@ -233,8 +233,8 @@ static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 	case SIMPLE_PT_START:
 	case SIMPLE_PT_STOP:
 		mutex_lock(&restart_mutex);
-		on_each_cpu(cmd == SIMPLE_PT_START ? do_start_pt : stop_pt, NULL, 1);
 		start = (cmd == SIMPLE_PT_START);
+		restart();
 		mutex_unlock(&restart_mutex);
 		return 0;
 	case SIMPLE_PT_GET_SIZE:
