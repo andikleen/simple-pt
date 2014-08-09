@@ -115,11 +115,6 @@ static int start_pt(void)
 	if (val & TRACE_EN)
 		wrmsrl_safe(MSR_IA32_RTIT_CTL, val & ~TRACE_EN);
 
-	if (!initialized) {
-		wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(topa_cpu)));
-		wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
-	}
-
 	val |= TRACE_EN | TO_PA;
 	if (tsc_en)
 		val |= TSC_EN;
@@ -194,15 +189,10 @@ static void simple_pt_cpu_init(void *arg)
 	topa[0] = (u64)__pa(pt_buffer) | (pt_buffer_order << TOPA_SIZE_SHIFT);
 	topa[1] = (u64)__pa(topa) | TOPA_END; /* circular buffer */
 
-	if (start && start_pt() < 0) {
-		pr_err("cpu %d, Enabling PT failed, status %llx\n", cpu, rtit_status());
-		pt_error = -EIO;
-		goto out_topa;
-	}
+	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(topa_cpu)));
+	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
 	return;
-out_topa:
-	free_page((unsigned long)topa);
-	__get_cpu_var(topa_cpu) = NULL;
+
 out_pt_buffer:
 	free_pages(pt_buffer, pt_buffer_order);
 	__get_cpu_var(pt_buffer_cpu) = 0;
@@ -232,6 +222,8 @@ static int simple_pt_mmap(struct file *file, struct vm_area_struct *vma)
 static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 			    unsigned long arg)
 {
+	int ret;
+
 	switch (cmd) {
 	case SIMPLE_PT_SET_CPU: {
 		unsigned long cpu = arg;
@@ -241,17 +233,26 @@ static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 		return 0;
 	}
 	case SIMPLE_PT_START:
-		on_each_cpu(do_start_pt, NULL, 1);
-		return 0;
 	case SIMPLE_PT_STOP:
-		on_each_cpu(stop_pt, NULL, 1);
+		mutex_lock(&restart_mutex);
+		on_each_cpu(cmd == SIMPLE_PT_START ? do_start_pt : stop_pt, NULL, 1);
+		start = (cmd == SIMPLE_PT_START);
+		mutex_unlock(&restart_mutex);
 		return 0;
 	case SIMPLE_PT_GET_SIZE:
 		return put_user(PAGE_SIZE << pt_buffer_order, (int *)arg);
-	case SIMPLE_PT_GET_OFFSET:
+	case SIMPLE_PT_GET_OFFSET: {
+		unsigned offset;
+		mutex_lock(&restart_mutex);
 		if (per_cpu(pt_running, (long)file->private_data))
-			return -EIO;
-		return put_user(per_cpu(pt_offset, (long)file->private_data), (int *)arg);
+			ret = -EIO;
+		else
+			offset = per_cpu(pt_offset, (long)file->private_data);
+		mutex_unlock(&restart_mutex);
+		if (!ret)
+			ret = put_user(offset, (int *)arg);
+		return ret;
+	}
 	default:
 		return -ENOTTY;
 	}
@@ -364,11 +365,13 @@ static int simple_pt_init(void)
 	if (err)
 		pr_info("Cannot register exec tracepoint: %d\n", err);
 
+	initialized = true;
+	if (start)
+		restart();
+
 	pr_info("%s with %ld KB buffer\n",
 				start ? "running" : "loaded",
 				(PAGE_SIZE << pt_buffer_order) / 1024);
-
-	initialized = true;
 	return 0;
 
 out_buffers:
@@ -393,9 +396,7 @@ static void stop_pt(void *arg)
 
 	rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
 	__get_cpu_var(pt_offset) = offset >> 32;
-	pr_info("cpu %d, table offset %llu output_offset %llu\n", cpu,
-			(offset & 0xffffffff) >> (7 - 3),
-			offset >> 32);
+	__get_cpu_var(pt_running) = false;
 }
 
 static void free_all_buffers(void)
