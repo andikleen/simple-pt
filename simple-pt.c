@@ -104,7 +104,7 @@ static DEFINE_MUTEX(restart_mutex);
 
 static inline int pt_wrmsrl_safe(unsigned msr, u64 val)
 {
-	int ret = pt_wrmsrl_safe(msr, val);
+	int ret = wrmsrl_safe(msr, val);
 	if (trace_msrs)
 		trace_printk("msr %x -> %llx, %d\n", msr, val, ret);
 	return ret;
