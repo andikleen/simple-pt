@@ -7,6 +7,7 @@ while getopts "c:k" opt ; do
 	case "$opt" in
 	c) COMM=$OPTARG ;;
 	k) KERNEL=1 ;;
+	t) TRACE=1 ;; 
 	\?) exit 1 ;;
 	*) break ;;
 	esac
@@ -15,6 +16,7 @@ shift $((OPTIND - 1))
 
 COMM=${COMM:-}
 KERNEL=${KERNEL:-0}
+TRACE=${TRACE:-}
 
 if [ -r simple-pt.ko ] ; then
 	/sbin/insmod simple-pt.ko start=0
@@ -25,6 +27,9 @@ C=/sys/module/simple_pt/parameters
 if [ -n "$COMM" ] ; then
 	echo $COMM > $C/comm_filter
 	echo 1 > $C/cr3_filter
+fi
+if [ -n "$TRACE" ] ; then
+	echo $TRACE > $C/trace_msrs
 fi
 echo $KERNEL > $C/kernel
 echo 1 > $C/user
