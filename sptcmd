@@ -1,6 +1,6 @@
 #!/bin/bash
 # simple pt trace a command
-# sptcmd [-k] [-c comm-to-filer] cmd
+# sptcmd [-k] [-c comm-to-filter] cmd
 # -k trace kernel too
 
 while getopts "c:k" opt ; do
@@ -13,7 +13,7 @@ while getopts "c:k" opt ; do
 done
 shift $((OPTIND - 1))
 
-COMM=${COMM:-$(basename $1)}
+COMM=${COMM:-}
 KERNEL=${KERNEL:-0}
 
 if [ -r simple-pt.ko ] ; then
@@ -22,7 +22,9 @@ else
 	/sbin/modprobe simple-pt start=0
 fi
 C=/sys/module/simple_pt/parameters
-echo $COMM > $C/comm_filter
+if [ -n "$COMM" ] ; then
+	echo $COMM > $C/comm_filter
+fi
 echo 1 > $C/cr3_filter
 echo $KERNEL > $C/kernel
 echo 1 > $C/user
