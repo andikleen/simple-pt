@@ -124,7 +124,7 @@ static int start_pt(void)
 		val |= CTL_USER;
 	if (cr3_filter) {
 		if (!(val & CR3_FILTER))
-			wrmsrl_safe(MSR_IA32_CR3_FILTER, 0ULL);
+			wrmsrl_safe(MSR_IA32_CR3_MATCH, 0ULL);
 		val |= CR3_FILTER;
 	}
 	if (dis_retc)
