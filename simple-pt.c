@@ -222,12 +222,10 @@ static int simple_pt_mmap(struct file *file, struct vm_area_struct *vma)
 static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 			    unsigned long arg)
 {
-	int ret;
-
 	switch (cmd) {
 	case SIMPLE_PT_SET_CPU: {
 		unsigned long cpu = arg;
-		if (cpu > NR_CPUS || !cpu_online(cpu))
+		if (cpu >= NR_CPUS || !cpu_online(cpu))
 			return -EINVAL;
 		file->private_data = (void *)cpu;
 		return 0;
@@ -243,6 +241,7 @@ static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 		return put_user(PAGE_SIZE << pt_buffer_order, (int *)arg);
 	case SIMPLE_PT_GET_OFFSET: {
 		unsigned offset;
+		int ret = 0;
 		mutex_lock(&restart_mutex);
 		if (per_cpu(pt_running, (long)file->private_data))
 			ret = -EIO;
