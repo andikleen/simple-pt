@@ -96,13 +96,32 @@ MODULE_PARM_DESC(dis_retc, "Disable return compression");
 static bool clear_on_start = true;
 module_param(clear_on_start, bool, 0644);
 MODULE_PARM_DESC(clear_on_start, "Clear PT buffer before start");
+static bool trace_msrs = false;
+module_param(trace_msrs, bool, 0644);
+MODULE_PARM_DESC(trace_msrs, "Trace all PT MSRs");
 
 static DEFINE_MUTEX(restart_mutex);
+
+static inline int pt_wrmsrl_safe(unsigned msr, u64 val)
+{
+	int ret = pt_wrmsrl_safe(msr, val);
+	if (trace_msrs)
+		trace_printk("msr %x -> %llx, %d\n", msr, val, ret);
+	return ret;
+}
+
+static inline int pt_rdmsrl_safe(unsigned msr, u64 *val)
+{
+	int ret = rdmsrl_safe(msr, val);
+	if (trace_msrs)
+		trace_printk("msr %x <- %llx\n", msr, ret == 0 ? *val : -1LL);
+	return ret;
+}
 
 static u64 rtit_status(void)
 {
 	u64 status;
-	if (rdmsrl_safe(MSR_IA32_RTIT_STATUS, &status) < 0)
+	if (pt_rdmsrl_safe(MSR_IA32_RTIT_STATUS, &status) < 0)
 		return 0;
 	return status;
 }
@@ -111,16 +130,16 @@ static int start_pt(void)
 {
 	u64 val;
 
-	if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &val) < 0)
+	if (pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val) < 0)
 		return -1;
 
 	/* Disable trace for reconfiguration */
 	if (val & TRACE_EN)
-		wrmsrl_safe(MSR_IA32_RTIT_CTL, val & ~TRACE_EN);
+		pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val & ~TRACE_EN);
 
 	if (clear_on_start && !(val & TRACE_EN)) {
 		memset((void *)__get_cpu_var(pt_buffer_cpu), 0, PAGE_SIZE << pt_buffer_order);
-		wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
+		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
 	}
 
 	val |= TRACE_EN | TO_PA;
@@ -132,12 +151,12 @@ static int start_pt(void)
 		val |= CTL_USER;
 	if (cr3_filter) {
 		if (!(val & CR3_FILTER))
-			wrmsrl_safe(MSR_IA32_CR3_MATCH, 0ULL);
+			pt_wrmsrl_safe(MSR_IA32_CR3_MATCH, 0ULL);
 		val |= CR3_FILTER;
 	}
 	if (dis_retc)
 		val |= DIS_RETC;
-	if (wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
+	if (pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
 		return -1;
 	__get_cpu_var(pt_running) = true;
 	return 0;
@@ -170,7 +189,7 @@ static void simple_pt_cpu_init(void *arg)
 	u64 ctl;
 
 	/* check for pt already active */
-	if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &ctl) == 0 && (ctl & TRACE_EN)) {
+	if (pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &ctl) == 0 && (ctl & TRACE_EN)) {
 		pr_err("cpu %d, PT already active\n", cpu);
 		pt_error = -EBUSY;
 		return;
@@ -199,8 +218,8 @@ static void simple_pt_cpu_init(void *arg)
 	topa[0] = (u64)__pa(pt_buffer) | (pt_buffer_order << TOPA_SIZE_SHIFT);
 	topa[1] = (u64)__pa(topa) | TOPA_END; /* circular buffer */
 
-	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(topa_cpu)));
-	wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
+	pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(topa_cpu)));
+	pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
 	return;
 
 out_pt_buffer:
@@ -279,13 +298,13 @@ static void set_cr3_filter(void *arg)
 {
 	u64 val;
 
-	if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &val) < 0)
+	if (pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val) < 0)
 		return;
-	if ((val & TRACE_EN) && wrmsrl_safe(MSR_IA32_RTIT_CTL, val & ~TRACE_EN) < 0)
+	if ((val & TRACE_EN) && pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val & ~TRACE_EN) < 0)
 		return;
-	if (wrmsrl_safe(MSR_IA32_CR3_MATCH, *(u64 *)arg) < 0)
+	if (pt_wrmsrl_safe(MSR_IA32_CR3_MATCH, *(u64 *)arg) < 0)
 		pr_err("cpu %d, cannot set cr3 filter\n", smp_processor_id());
-	if ((val & TRACE_EN) && wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
+	if ((val & TRACE_EN) && pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
 		return;
 }
 
@@ -390,13 +409,13 @@ static void stop_pt(void *arg)
 
 	if (!__get_cpu_var(pt_running))
 		return;
-	wrmsrl_safe(MSR_IA32_RTIT_CTL, 0LL);
+	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, 0LL);
 	status = rtit_status();
 	if (status)
 		pr_info("cpu %d, rtit status %llx after stopping\n", cpu, status);
 	__get_cpu_var(pt_running) = false;
 
-	rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
+	pt_rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
 	__get_cpu_var(pt_offset) = offset >> 32;
 	__get_cpu_var(pt_running) = false;
 }
