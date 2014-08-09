@@ -9,27 +9,12 @@
 #include <stdint.h>
 #include <unistd.h>
 
+#include "map.h"
+
 #define BIT(x) (1U << (x))
-#define round_up(x, y) (((x) + (y) - 1) & ~((y) - 1))
 
 typedef unsigned long long u64;
 
-void *mapfile(char *fn, size_t *size)
-{
-	int fd = open(fn, O_RDWR);
-	if (fd < 0)
-		return NULL;
-	struct stat st;
-	void *map = (void *)-1L;
-	if (fstat(fd, &st) >= 0) {
-		*size = st.st_size;
-		map = mmap(NULL, round_up(st.st_size, getpagesize()),
-			   PROT_READ|PROT_WRITE,
-			   MAP_PRIVATE, fd, 0);
-	}
-	close(fd);
-	return map != (void *)-1L ? map : NULL;
-}
 
 static char psb[16] = {
 	0x02, 0x82, 0x02, 0x82, 0x02, 0x82, 0x02, 0x82,
@@ -257,7 +242,7 @@ void do_file(char *fn)
 		return;
 	}
 	decode_buffer(map, len);
-	munmap(map, round_up(len, getpagesize()));
+	unmapfile(map, len);
 }
 
 int main(int ac, char **av)

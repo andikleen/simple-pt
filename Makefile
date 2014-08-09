@@ -12,10 +12,10 @@ install:
 
 clean:
 	${M} clean
-	rm -rf sptdump
+	rm -rf sptdump fastdecode.o sptdump.o fastdecode
 
 sptdump: CFLAGS := -g -Wall
 sptdump: sptdump.o
 
 fastdecode: CFLAGS := -g -Wall
-fastdecode: fastdecode.o
+fastdecode: fastdecode.o map.o
