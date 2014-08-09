@@ -29,7 +29,7 @@ int main(int ac, char **av)
 
 	int i;
 	for (i = 0; i < ncpus; i++) {
-		pfds[i] = open("/dev/simple-pt", O_RDONLY);
+		pfds[i] = open("/dev/simple-pt", O_RDONLY | O_CLOEXEC);
 		if (pfds[i] < 0)
 			err("open /dev/simple-pt");
 
@@ -48,7 +48,7 @@ int main(int ac, char **av)
 			err("mmap on simplept");
 	}
 
-	int ctlfd = open("/dev/simple-pt", O_RDONLY);
+	int ctlfd = open("/dev/simple-pt", O_RDONLY | O_CLOEXEC);
 	if (ctlfd < 0)
 		err("open /dev/simple-pt");
 
