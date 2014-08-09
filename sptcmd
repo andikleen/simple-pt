@@ -1,9 +1,22 @@
 #!/bin/sh
 # simple pt trace a command
+# sptcmd [-c comm-to-filer] cmd
 
-/sbin/insmod simple-pt.ko start=0
-C=/sys/modules/simple_pt/parameters/
-echo $(basename $1) > $C/comm_filter
+if [ "$1" = "-c" ] ; then
+	shift
+	COMM=$1
+	shift
+else
+	COMM=$(basename $1)
+fi
+
+if [ -r simple-pt.ko ] ; then
+	/sbin/insmod simple-pt.ko start=0
+else
+	/sbin/modprobe simple-pt start=0
+fi
+C=/sys/module/simple_pt/parameters
+echo $COMM > $C/comm_filter
 echo 1 > $C/cr3_filter
 echo 0 > $C/kernel
 echo 1 > $C/user
