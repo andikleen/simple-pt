@@ -128,11 +128,12 @@ static u64 rtit_status(void)
 
 static int start_pt(void)
 {
-	u64 val;
+	u64 val, oldval;
 
 	if (pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val) < 0)
 		return -1;
 
+	oldval = val;
 	/* Disable trace for reconfiguration */
 	if (val & TRACE_EN)
 		pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val & ~TRACE_EN);
@@ -143,6 +144,7 @@ static int start_pt(void)
 	}
 
 	val |= TRACE_EN | TO_PA;
+	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC);
 	if (tsc_en)
 		val |= TSC_EN;
 	if (kernel)
@@ -150,7 +152,7 @@ static int start_pt(void)
 	if (user)
 		val |= CTL_USER;
 	if (cr3_filter) {
-		if (!(val & CR3_FILTER))
+		if (!(oldval & CR3_FILTER))
 			pt_wrmsrl_safe(MSR_IA32_CR3_MATCH, 0ULL);
 		val |= CR3_FILTER;
 	}
