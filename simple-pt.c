@@ -109,9 +109,6 @@ static int start_pt(void)
 {
 	u64 val;
 
-	if (__get_cpu_var(pt_running))
-		return 0;
-
 	if (rdmsrl_safe(MSR_IA32_RTIT_CTL, &val) < 0)
 		return -1;
 	/* Disable trace for reconfiguration */
