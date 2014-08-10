@@ -36,12 +36,12 @@ TRACE_EVENT(mmap_cr3,
 		    __entry->pgoff = pgoff;
 		    __entry->addr = addr;
 		    __entry->len = len;),
-	    TP_printk("cr3=%llx, fn=%s, pgoff=%lx, addr=%lx, len=%lx",
+	    TP_printk("cr3=%llx, pgoff=%lx, addr=%lx, len=%lx, fn=%s",
 		      __entry->cr3,
-		      __entry->fn,
 		      __entry->pgoff,
 		      __entry->addr,
-		      __entry->len));
+		      __entry->len,
+		      __entry->fn));
 
 #endif
 
