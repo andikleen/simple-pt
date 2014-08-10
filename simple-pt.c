@@ -89,7 +89,7 @@ module_param_cb(tsc, &resync_ops, &tsc_en, 0644);
 MODULE_PARM_DESC(tsc, "Set to 0 to not trace timing");
 static char comm_filter[100];
 module_param_string(comm_filter, comm_filter, sizeof(comm_filter), 0644);
-MODULE_PARM_DESC(comm_filter, "Process names to set CR3 filter for");
+MODULE_PARM_DESC(comm_filter, "Process name to set CR3 filter for");
 static int cr3_filter = 0;
 module_param_cb(cr3_filter, &resync_ops, &cr3_filter, 0644);
 MODULE_PARM_DESC(cr3_filter, "Enable CR3 filter");
