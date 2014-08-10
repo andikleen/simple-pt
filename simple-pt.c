@@ -330,23 +330,33 @@ static void set_cr3_filter(void *arg)
 		return;
 }
 
+static bool match_comm(void)
+{
+	char *s;
+
+	if (comm_filter[0] == 0)
+		return true;
+	s = strchr(comm_filter, '\n');
+	if (s)
+		*s = 0;
+	return !strcmp(current->comm, comm_filter);
+}
+
+static u64 retrieve_cr3(void)
+{
+	u64 cr3;
+	asm volatile("mov %%cr3,%0" : "=r" (cr3));
+	return cr3;
+}
+
 static void probe_sched_process_exec(void *arg,
 				     struct task_struct *p, pid_t old_pid,
 				     struct linux_binprm *bprm)
 {
-	u64 cr3;
-	char *s;
+	u64 cr3 = retrieve_cr3();
 
-	asm volatile("mov %%cr3,%0" : "=r" (cr3));
 	trace_exec_cr3(cr3);
-
-	if (comm_filter[0] == 0)
-		return;
-	s = strchr(comm_filter, '\n');
-	if (s)
-		*s = 0;
-	if (!strcmp(current->comm, comm_filter) && has_cr3_match) {
-		pr_debug("arming cr3 filter %llx for %s\n", cr3, current->comm);
+	if (match_comm() && has_cr3_match) {
 		mutex_lock(&restart_mutex);
 		on_each_cpu(set_cr3_filter, &cr3, 1);
 		mutex_unlock(&restart_mutex);
@@ -363,10 +373,12 @@ static int probe_mmap_region(struct kprobe *kp, struct pt_regs *regs)
 	unsigned long len = regs->dx;
 	unsigned long vm_flags = regs->cx;
 	unsigned long pgoff = regs->r8;
-	u64 cr3;
 	char *pathbuf, *path;
 
 	if (!(vm_flags & VM_EXEC))
+		return 0;
+
+	if (!match_comm())
 		return 0;
 
 	pathbuf = (char *)__get_free_page(GFP_KERNEL);
@@ -377,8 +389,7 @@ static int probe_mmap_region(struct kprobe *kp, struct pt_regs *regs)
 	if (IS_ERR(path))
 		goto out;
 
-	asm volatile("mov %%cr3,%0" : "=r" (cr3));
-	trace_mmap_cr3(cr3, path, pgoff, addr, len);
+	trace_mmap_cr3(retrieve_cr3(), path, pgoff, addr, len);
 out:
 	free_page((unsigned long)pathbuf);
 	return 0;
