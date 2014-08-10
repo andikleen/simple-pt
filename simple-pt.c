@@ -354,13 +354,28 @@ static void probe_sched_process_exec(void *arg,
 				     struct linux_binprm *bprm)
 {
 	u64 cr3 = retrieve_cr3();
+	char *pathbuf, *path;
 
-	trace_exec_cr3(cr3);
-	if (match_comm() && has_cr3_match) {
+	if (!match_comm())
+		return;
+
+	pathbuf = (char *)__get_free_page(GFP_KERNEL);
+	if (!pathbuf)
+		return;
+
+	/* mmap_sem needed? */
+	path = d_path(&current->mm->exe_file->f_path, pathbuf, PAGE_SIZE);
+	if (IS_ERR(path))
+		goto out;
+
+	trace_exec_cr3(cr3, path);
+	if (comm_filter[0] && has_cr3_match) {
 		mutex_lock(&restart_mutex);
 		on_each_cpu(set_cr3_filter, &cr3, 1);
 		mutex_unlock(&restart_mutex);
 	}
+out:
+	free_page((unsigned long)pathbuf);
 }
 
 #ifdef CONFIG_X86_64

@@ -9,13 +9,15 @@
 /* Map exec to CR3 to match to PIPs */
 
 TRACE_EVENT(exec_cr3,
-	    TP_PROTO(u64 cr3),
-	    TP_ARGS(cr3),
+	    TP_PROTO(u64 cr3, char *fn),
+	    TP_ARGS(cr3, fn),
 	    TP_STRUCT__entry(
-		    __field(u64, cr3)),
+		    __field(u64, cr3)
+		    __field(char *, fn)),
 	    TP_fast_assign(
-		    __entry->cr3 = cr3;),
-	    TP_printk("cr3=%llx", __entry->cr3));
+		    __entry->cr3 = cr3;
+		    __entry->fn = fn;),
+	    TP_printk("cr3=%llx, fn=%s", __entry->cr3, __entry->fn));
 
 /* Map mmap file names to address, CR3 */
 
