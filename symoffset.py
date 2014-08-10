@@ -13,7 +13,7 @@ if len(sys.argv) < 2:
 
 pipe = subprocess.Popen("nm " + sys.argv[1], shell=True, stdout=subprocess.PIPE).stdout
 symtab = []
-adresses = []
+addresses = []
 max = 0
 for l in pipe:
 	m = re.match(r"^([0-9a-f]+) \S (\w+)", l)
@@ -21,8 +21,8 @@ for l in pipe:
                 val = int(m.group(1), 16)
                 if val > max:
                     max = val
-                pos = bisect.bisect_left(adresses, val)
-                adresses.insert(pos, val)
+                pos = bisect.bisect_left(addresses, val)
+                addresses.insert(pos, val)
 		symtab.insert(pos, m.group(2))
 
 for l in sys.stdin:
@@ -32,19 +32,19 @@ for l in sys.stdin:
         except:
             print l,
             continue
-	n = bisect.bisect_left(adresses, adr)
-	if n >= len(adresses):
+	n = bisect.bisect_left(addresses, adr)
+	if n >= len(addresses):
 		#print "%u not found %d/%d" % (adr,n,len(symtab))
 		print l,
 		continue
 	sym = symtab[n]
-	print "%-30s" % ("%s+%d" % (symtab[n], -(adr - adresses[n]))),
+	print "%-30s" % ("%s+%d" % (symtab[n], -(adr - addresses[n]))),
         print l.rstrip(),
         m = re.search(r'\[rip\+(0x[0-9a-f]+)\]', l)
         if m:
             saddr = adr + int(m.group(1), 16)
-            n = bisect.bisect_left(adresses, saddr)
-            if n < len(adresses):
+            n = bisect.bisect_left(addresses, saddr)
+            if n < len(addresses):
                 # XXX really need to use next IP
                 print "\t# %s" % (symtab[n]),
         print
