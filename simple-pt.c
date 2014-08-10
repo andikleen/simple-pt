@@ -174,7 +174,24 @@ static void do_start_pt(void *arg)
 		pr_err("cpu %d, RTIT_CTL enable failed\n", cpu);
 }
 
-static void stop_pt(void *arg);
+static void stop_pt(void *arg)
+{
+	u64 offset;
+	u64 status;
+	int cpu = smp_processor_id();
+
+	if (!__get_cpu_var(pt_running))
+		return;
+	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, 0LL);
+	status = rtit_status();
+	if (status)
+		pr_info("cpu %d, rtit status %llx after stopping\n", cpu, status);
+	__get_cpu_var(pt_running) = false;
+
+	pt_rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
+	__get_cpu_var(pt_offset) = offset >> 32;
+	__get_cpu_var(pt_running) = false;
+}
 
 static void restart(void)
 {
@@ -405,25 +422,6 @@ out_buffers:
 	free_all_buffers();
 	misc_deregister(&simple_pt_miscdev);
 	return err;
-}
-
-static void stop_pt(void *arg)
-{
-	u64 offset;
-	u64 status;
-	int cpu = smp_processor_id();
-
-	if (!__get_cpu_var(pt_running))
-		return;
-	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, 0LL);
-	status = rtit_status();
-	if (status)
-		pr_info("cpu %d, rtit status %llx after stopping\n", cpu, status);
-	__get_cpu_var(pt_running) = false;
-
-	pt_rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
-	__get_cpu_var(pt_offset) = offset >> 32;
-	__get_cpu_var(pt_running) = false;
 }
 
 static void free_all_buffers(void)
