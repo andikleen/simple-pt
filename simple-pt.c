@@ -1,9 +1,11 @@
 /* Minimal PT driver. */
 /* Author: Andi Kleen */
 /* Notebook:
-   Make on/off state per cpu
+   Instrument mmap
    Add stop-on-kprobe
+   Multiple entry toPA
    Test old kernels
+   Test CPU hotplug
    */
 
 #define DEBUG 1
