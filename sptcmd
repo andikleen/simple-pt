@@ -14,10 +14,11 @@ sptcmd [options] cmd
 -t enable msr trace in side band
 -x BINARY  run decoder with binary (should use -c too)
 -R disable return compression
+-d Always reload driver
 EOU
 }
 
-while getopts "c:ktUx:R" opt ; do
+while getopts "c:ktUx:Rd" opt ; do
 	case "$opt" in
 	c) COMM="$OPTARG" ;;
 	k) KERNEL=1 ;;
@@ -25,6 +26,7 @@ while getopts "c:ktUx:R" opt ; do
 	U) USER=0 ;;
 	x) BINARY="$OPTARG" ;;
 	R) DISRETC=1 ;;
+	d) DRIVER=1 ;;
 	\?) usage ; exit 1 ;;
 	*) break ;;
 	esac
@@ -37,9 +39,11 @@ TRACE=${TRACE:-}
 USER=${USER:-1}
 BINARY=${BINARY:-}
 DISRETC=${DISRETC:-0}
+DRIVER=${DRIVER:-}
 
 PATH=$PATH:$(pwd)
 
+[ -n "$DRIVER" ] && /sbin/rmmod simple_pt
 if [ -r simple-pt.ko ] ; then
 	/sbin/insmod simple-pt.ko start=0
 else
