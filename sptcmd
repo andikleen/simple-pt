@@ -1,13 +1,18 @@
 #!/bin/bash
 # simple pt trace a command
 # sptcmd [-k] [-c comm-to-filter] cmd
-# -k trace kernel too
+# -k trace kernel code
+# -U disable user trace
+# -t enable msr trace in side band
+# -x BINARY  run decoder with binary (should use -c too)
 
-while getopts "c:kt" opt ; do
+while getopts "c:ktUx:" opt ; do
 	case "$opt" in
-	c) COMM=$OPTARG ;;
+	c) COMM="$OPTARG" ;;
 	k) KERNEL=1 ;;
-	t) TRACE=1 ;; 
+	t) TRACE=1 ;;
+	U) USER=0 ;;
+	x) BINARY="$OPTARG" ;;
 	\?) exit 1 ;;
 	*) break ;;
 	esac
@@ -17,6 +22,10 @@ shift $((OPTIND - 1))
 COMM=${COMM:-}
 KERNEL=${KERNEL:-0}
 TRACE=${TRACE:-}
+USER=${USER:-1}
+BINARY=${BINARY:-}
+
+PATH=$PATH:$(pwd)
 
 if [ -r simple-pt.ko ] ; then
 	/sbin/insmod simple-pt.ko start=0
@@ -32,7 +41,7 @@ if [ -n "$TRACE" ] ; then
 	echo $TRACE > $C/trace_msrs
 fi
 echo $KERNEL > $C/kernel
-echo 1 > $C/user
+echo $USER > $C/user
 T=/sys/kernel/debug/tracing
 echo 1 > $T/events/pttp/exec_cr3/enable
 echo > $T/trace
@@ -40,5 +49,17 @@ echo 1 > $C/start
 "$@"
 echo 0 > $C/start
 echo 0 > $T/events/pttp/exec_cr3/enable
-./sptdump
+sptdump
 grep -v '^#' $T/trace > sideband
+if [ -n "$BINARY" ] ; then
+	if [ -n "$COMM" ] ; then
+		# XXX assumes program does not change CPUs
+		# FIXME
+		CPU=$(grep "$COMM-" sideband | awk ' { print $2 ; exit }' )
+		ptxed --pt ptout.$CPU --elf "$BINARY"
+	else
+		for i in ptout.* ; do
+			ptxed --pt $i --elf "$BINARY"
+		done
+	fi
+fi
