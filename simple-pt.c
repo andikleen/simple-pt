@@ -334,11 +334,11 @@ static bool match_comm(void)
 {
 	char *s;
 
-	if (comm_filter[0] == 0)
-		return true;
 	s = strchr(comm_filter, '\n');
 	if (s)
 		*s = 0;
+	if (comm_filter[0] == 0)
+		return true;
 	return !strcmp(current->comm, comm_filter);
 }
 
