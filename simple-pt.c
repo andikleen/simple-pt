@@ -314,8 +314,6 @@ static struct miscdevice simple_pt_miscdev = {
 	&simple_pt_fops
 };
 
-static void free_all_buffers(void);
-
 static void set_cr3_filter(void *arg)
 {
 	u64 val;
@@ -370,6 +368,8 @@ static int simple_pt_cpu(struct notifier_block *nb, unsigned long action,
 static struct notifier_block cpu_notifier = {
 	.notifier_call = simple_pt_cpu,
 };
+
+static void free_all_buffers(void);
 
 static int simple_pt_init(void)
 {
