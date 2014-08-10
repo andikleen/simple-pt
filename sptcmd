@@ -1,11 +1,21 @@
 #!/bin/bash
 # simple pt trace a command
-# sptcmd [-k] [-c comm-to-filter] cmd
-# -k trace kernel code
-# -U disable user trace
-# -t enable msr trace in side band
-# -x BINARY  run decoder with binary (should use -c too)
-# -R disable return compression
+
+usage() {
+	cat <<EOU
+Simple PT processor branch trace. The complete system is traced
+unless a comm filter is set, as long as cmd is executing.
+The output files are in ptout.CPU and sideband.
+
+sptcmd [options] cmd
+-c COMM  Set comm filter for comm (only trace that command)
+-k trace kernel code
+-U disable user trace
+-t enable msr trace in side band
+-x BINARY  run decoder with binary (should use -c too)
+-R disable return compression
+EOU
+}
 
 while getopts "c:ktUx:R" opt ; do
 	case "$opt" in
@@ -15,7 +25,7 @@ while getopts "c:ktUx:R" opt ; do
 	U) USER=0 ;;
 	x) BINARY="$OPTARG" ;;
 	R) DISRETC=1 ;;
-	\?) exit 1 ;;
+	\?) usage ; exit 1 ;;
 	*) break ;;
 	esac
 done
