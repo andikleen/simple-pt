@@ -18,12 +18,14 @@ sptcmd [options] cmd
 EOU
 }
 
+unset COMM KERNEL TRACE USERMODE BINARY DISRETC DRIVER
+
 while getopts "c:ktUx:Rd" opt ; do
 	case "$opt" in
 	c) COMM="$OPTARG" ;;
 	k) KERNEL=1 ;;
 	t) TRACE=1 ;;
-	U) USER=0 ;;
+	U) USERMODE=0 ;;
 	x) BINARY="$OPTARG" ;;
 	R) DISRETC=1 ;;
 	d) DRIVER=1 ;;
@@ -36,7 +38,7 @@ shift $((OPTIND - 1))
 COMM=${COMM:-}
 KERNEL=${KERNEL:-0}
 TRACE=${TRACE:-}
-USER=${USER:-1}
+USERMODE=${USERMODE:-1}
 BINARY=${BINARY:-}
 DISRETC=${DISRETC:-0}
 DRIVER=${DRIVER:-}
@@ -58,7 +60,7 @@ if [ -n "$TRACE" ] ; then
 	echo $TRACE > $C/trace_msrs
 fi
 echo $KERNEL > $C/kernel
-echo $USER > $C/user
+echo $USERMODE > $C/user
 echo $DISRETC > $C/dis_retc
 T=/sys/kernel/debug/tracing
 echo 1 > $T/events/pttp/exec_cr3/enable
