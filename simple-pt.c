@@ -68,6 +68,7 @@ static DEFINE_PER_CPU(bool, pt_running);
 static DEFINE_PER_CPU(u64, pt_offset);
 static int pt_error;
 static bool initialized;
+static bool has_cr3_match;
 
 static int pt_buffer_order = 9;
 module_param(pt_buffer_order, int, 0444);
@@ -151,7 +152,7 @@ static int start_pt(void)
 		val |= CTL_OS;
 	if (user)
 		val |= CTL_USER;
-	if (cr3_filter) {
+	if (cr3_filter && has_cr3_match) {
 		if (!(oldval & CR3_FILTER))
 			pt_wrmsrl_safe(MSR_IA32_CR3_MATCH, 0ULL);
 		val |= CR3_FILTER;
@@ -325,7 +326,7 @@ static void probe_sched_process_exec(void *arg,
 	s = strchr(comm_filter, '\n');
 	if (s)
 		*s = 0;
-	if (!strcmp(current->comm, comm_filter)) {
+	if (!strcmp(current->comm, comm_filter) && has_cr3_match) {
 		pr_debug("arming cr3 filter %llx for %s\n", cr3, current->comm);
 		mutex_lock(&restart_mutex);
 		on_each_cpu(set_cr3_filter, &cr3, 1);
@@ -367,6 +368,7 @@ static int simple_pt_init(void)
 		pr_info("No ToPA support\n");
 		return -EIO;
 	}
+	has_cr3_match = !!(b & BIT(0));
 
 	err = misc_register(&simple_pt_miscdev);
 	if (err < 0) {
