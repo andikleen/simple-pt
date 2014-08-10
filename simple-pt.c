@@ -1,11 +1,11 @@
 /* Minimal PT driver. */
 /* Author: Andi Kleen */
 /* Notebook:
-   Instrument mmap
    Add stop-on-kprobe
    Multiple entry toPA
    Test old kernels
    Test CPU hotplug
+   Test 32bit
    */
 
 #define DEBUG 1
@@ -378,16 +378,23 @@ out:
 	free_page((unsigned long)pathbuf);
 }
 
-#ifdef CONFIG_X86_64
-/* XXX Implement 32bit version */
-
 static int probe_mmap_region(struct kprobe *kp, struct pt_regs *regs)
 {
+#ifdef CONFIG_X86_64
 	struct file *file = (struct file *)regs->di;
 	unsigned long addr = regs->si;
 	unsigned long len = regs->dx;
 	unsigned long vm_flags = regs->cx;
 	unsigned long pgoff = regs->r8;
+#else
+	/* XXX test */
+	struct file *file = (struct file *)regs->ax;
+	unsigned long addr = regs->dx;
+	unsigned long len = regs->cx;
+	/* XXX right offset */
+	unsigned long vm_flags = ((u32 *)(regs->sp))[0];
+	unsigned long pgoff = ((u32 *)(regs->sp))[1];
+#endif
 	char *pathbuf, *path;
 
 	if (!(vm_flags & VM_EXEC))
@@ -414,8 +421,6 @@ static struct kprobe mmap_kp = {
 	.symbol_name = "mmap_region",
 	.pre_handler = probe_mmap_region,
 };
-
-#endif
 
 static int simple_pt_cpu(struct notifier_block *nb, unsigned long action,
 			 void *v)
@@ -476,13 +481,11 @@ static int simple_pt_init(void)
 	if (err)
 		pr_info("Cannot register exec tracepoint: %d\n", err);
 
-#ifdef CONFIG_X86_64
 	err = register_kprobe(&mmap_kp);
 	if (err < 0) {
 		pr_err("registering mmap_region kprobe failed: %d\n", err);
 		/* Ignore error */
 	}
-#endif
 
 	initialized = true;
 	if (start)
