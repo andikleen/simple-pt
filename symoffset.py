@@ -45,6 +45,6 @@ for l in sys.stdin:
             saddr = adr + int(m.group(1), 16)
             n = bisect.bisect_left(adresses, saddr)
             if n < len(adresses):
-                # XXX really need instruction ip
+                # XXX really need to use next IP
                 print "\t# %s" % (symtab[n]),
         print
