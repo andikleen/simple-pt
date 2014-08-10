@@ -6,7 +6,7 @@
 
 #include <linux/tracepoint.h>
 
-/* Trace point mapping exec to CR3 to match to PIPs */
+/* Map exec to CR3 to match to PIPs */
 
 TRACE_EVENT(exec_cr3,
 	    TP_PROTO(u64 cr3),
@@ -16,6 +16,30 @@ TRACE_EVENT(exec_cr3,
 	    TP_fast_assign(
 		    __entry->cr3 = cr3;),
 	    TP_printk("cr3=%llx", __entry->cr3));
+
+/* Map mmap file names to address, CR3 */
+
+TRACE_EVENT(mmap_cr3,
+	    TP_PROTO(u64 cr3, char *fn, unsigned long pgoff, unsigned long addr, unsigned long len),
+	    TP_ARGS(cr3, fn, pgoff, addr, len),
+	    TP_STRUCT__entry(
+		    __field(u64, cr3)
+		    __field(char *, fn)
+		    __field(unsigned long, pgoff)
+		    __field(unsigned long, addr)
+		    __field(unsigned long, len)),
+	    TP_fast_assign(
+		    __entry->cr3 = cr3;
+		    __entry->fn = fn;
+		    __entry->pgoff = pgoff;
+		    __entry->addr = addr;
+		    __entry->len = len;),
+	    TP_printk("cr3=%llx, fn=%s, pgoff=%lx, addr=%lx, len=%lx",
+		      __entry->cr3,
+		      __entry->fn,
+		      __entry->pgoff,
+		      __entry->addr,
+		      __entry->len));
 
 #endif
 

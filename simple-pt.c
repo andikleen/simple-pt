@@ -24,6 +24,8 @@
 #include <linux/uaccess.h>
 #include <linux/sched.h>
 #include <linux/kallsyms.h>
+#include <linux/kprobes.h>
+#include <linux/dcache.h>
 #include <trace/events/sched.h>
 #include <asm/msr.h>
 #include <asm/processor.h>
@@ -351,6 +353,44 @@ static void probe_sched_process_exec(void *arg,
 	}
 }
 
+#ifdef CONFIG_X86_64
+/* XXX Implement 32bit version */
+
+static int probe_mmap_region(struct kprobe *kp, struct pt_regs *regs)
+{
+	struct file *file = (struct file *)regs->di;
+	unsigned long addr = regs->si;
+	unsigned long len = regs->dx;
+	unsigned long vm_flags = regs->cx;
+	unsigned long pgoff = regs->r8;
+	u64 cr3;
+	char *pathbuf, *path;
+
+	if (!(vm_flags & VM_EXEC))
+		return 0;
+
+	pathbuf = (char *)__get_free_page(GFP_KERNEL);
+	if (!pathbuf)
+		return 0;
+
+	path = d_path(&file->f_path, pathbuf, PAGE_SIZE);
+	if (IS_ERR(path))
+		goto out;
+
+	asm volatile("mov %%cr3,%0" : "=r" (cr3));
+	trace_mmap_cr3(cr3, path, pgoff, addr, len);
+out:
+	free_page((unsigned long)pathbuf);
+	return 0;
+}
+
+static struct kprobe mmap_kp = {
+	.symbol_name = "mmap_region",
+	.pre_handler = probe_mmap_region,
+};
+
+#endif
+
 static int simple_pt_cpu(struct notifier_block *nb, unsigned long action,
 			 void *v)
 {
@@ -405,9 +445,18 @@ static int simple_pt_init(void)
 		goto out_buffers;
 	}
 
+	/* Trace exec->cr3 */
 	err = compat_register_trace_sched_process_exec(probe_sched_process_exec, NULL);
 	if (err)
 		pr_info("Cannot register exec tracepoint: %d\n", err);
+
+#ifdef CONFIG_X86_64
+	err = register_kprobe(&mmap_kp);
+	if (err < 0) {
+		pr_err("registering mmap_region kprobe failed: %d\n", err);
+		/* Ignore error */
+	}
+#endif
 
 	initialized = true;
 	if (start)
@@ -445,6 +494,9 @@ static void simple_pt_exit(void)
 	free_all_buffers();
 	misc_deregister(&simple_pt_miscdev);
 	compat_unregister_trace_sched_process_exec(probe_sched_process_exec, NULL);
+#ifdef CONFIG_X86_64
+	unregister_kprobe(&mmap_kp);
+#endif
 	pr_info("exited\n");
 }
 
