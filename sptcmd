@@ -5,14 +5,16 @@
 # -U disable user trace
 # -t enable msr trace in side band
 # -x BINARY  run decoder with binary (should use -c too)
+# -R disable return compression
 
-while getopts "c:ktUx:" opt ; do
+while getopts "c:ktUx:R" opt ; do
 	case "$opt" in
 	c) COMM="$OPTARG" ;;
 	k) KERNEL=1 ;;
 	t) TRACE=1 ;;
 	U) USER=0 ;;
 	x) BINARY="$OPTARG" ;;
+	R) DISRETC=1 ;;
 	\?) exit 1 ;;
 	*) break ;;
 	esac
@@ -24,6 +26,7 @@ KERNEL=${KERNEL:-0}
 TRACE=${TRACE:-}
 USER=${USER:-1}
 BINARY=${BINARY:-}
+DISRETC=${DISRETC:-0}
 
 PATH=$PATH:$(pwd)
 
@@ -42,6 +45,7 @@ if [ -n "$TRACE" ] ; then
 fi
 echo $KERNEL > $C/kernel
 echo $USER > $C/user
+echo $DISRETC > $C/dis_retc
 T=/sys/kernel/debug/tracing
 echo 1 > $T/events/pttp/exec_cr3/enable
 echo > $T/trace
