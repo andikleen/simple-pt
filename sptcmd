@@ -75,6 +75,10 @@ echo 1 > $T/events/pttp/mmap_cr3/enable
 echo 1 > $T/events/pttp/process_cr3/enable
 echo > $T/trace
 echo $ENUMALL > $C/enumerate_all
+if [ "$ENUMALL" != 0 ] ; then
+	grep . /proc/[0-9]*/maps > ${PREFIX}.maps
+	echo "Wrote process maps to ${PREFIX}.maps"
+fi
 echo 1 > $C/start
 "$@"
 echo 0 > $C/start
