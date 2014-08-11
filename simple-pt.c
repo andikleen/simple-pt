@@ -2,6 +2,7 @@
 /* Author: Andi Kleen */
 /* Notebook:
    Add stop-on-kprobe
+   Support single range
    Multiple entry toPA
    Test old kernels
    Test CPU hotplug
