@@ -69,17 +69,19 @@ static struct kernel_param_ops resync_ops = {
 };
 
 static void do_enumerate_all(void);
+static int enumerate_all;
 
 static int enumerate_set(const char *val, const struct kernel_param *kp)
 {
-	int ret = param_set_bool(val, kp);
-	do_enumerate_all();
+	int ret = param_set_int(val, kp);
+	if (enumerate_all)
+		do_enumerate_all();
 	return ret;
 }
 
 static struct kernel_param_ops enumerate_ops = {
 	.set = enumerate_set,
-	.get = param_get_bool,
+	.get = param_get_int,
 };
 
 static DEFINE_PER_CPU(unsigned long, pt_buffer_cpu);
@@ -123,9 +125,9 @@ MODULE_PARM_DESC(trace_msrs, "Trace all PT MSRs");
 static bool single_range = false;
 module_param(single_range, bool, 0444);
 MODULE_PARM_DESC(single_range, "Use single range output");
-static bool enumerate_all = false;
+static int enumerate_all = 0;
 module_param_cb(enumerate_all, &enumerate_ops, &enumerate_all, 0644);
-MODULE_PARM_DESC(enumerate_all, "Enumerate all processes CR3s and executables");
+MODULE_PARM_DESC(enumerate_all, "Enumerate all processes CR3s");
 
 static DEFINE_MUTEX(restart_mutex);
 
