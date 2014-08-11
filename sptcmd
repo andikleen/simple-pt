@@ -77,7 +77,7 @@ echo 1 > $C/start
 echo 0 > $C/start
 echo 0 > $T/events/pttp/exec_cr3/enable
 echo 0 > $T/events/pttp/mmap_cr3/enable
-if [ -z "$DONTDUMP" ] ;
+if [ -z "$DONTDUMP" ] ; then
 	sptdump $PREFIX
 	grep -v '^#' $T/trace > ${PREFIX}.sideband
 fi
