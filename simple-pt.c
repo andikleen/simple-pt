@@ -10,6 +10,7 @@
    */
 
 #define DEBUG 1
+#define TRACE_MSRS 1 /* set to 0 to disable trace_printk usage */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
@@ -114,7 +115,7 @@ static DEFINE_MUTEX(restart_mutex);
 static inline int pt_wrmsrl_safe(unsigned msr, u64 val)
 {
 	int ret = wrmsrl_safe(msr, val);
-	if (trace_msrs)
+	if (TRACE_MSRS && trace_msrs)
 		trace_printk("msr %x -> %llx, %d\n", msr, val, ret);
 	return ret;
 }
@@ -122,7 +123,7 @@ static inline int pt_wrmsrl_safe(unsigned msr, u64 val)
 static inline int pt_rdmsrl_safe(unsigned msr, u64 *val)
 {
 	int ret = rdmsrl_safe(msr, val);
-	if (trace_msrs)
+	if (TRACE_MSRS && trace_msrs)
 		trace_printk("msr %x <- %llx\n", msr, ret == 0 ? *val : -1LL);
 	return ret;
 }
