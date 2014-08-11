@@ -44,7 +44,7 @@ int main(int ac, char **av)
 
 		char fn[1024];
 		snprintf(fn, sizeof fn, "%s.%d", av[1] ? av[1] : "ptout", i);
-		int fd = open(fn, O_WRONLY|O_CREAT, 0644);
+		int fd = open(fn, O_WRONLY|O_CREAT|O_TRUNC, 0644);
 		if (fd < 0)
 			err("Opening output file");
 
