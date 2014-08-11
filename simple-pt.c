@@ -7,6 +7,7 @@
    Test old kernels
    Test CPU hotplug
    Test 32bit
+   Enumerate all processes' CR3 at start
    */
 
 #define DEBUG 1
