@@ -17,12 +17,13 @@ sptcmd [options] cmd
 -d Always reload driver
 -N Don't dump data
 -o PREFIX Dump to PREFIX.cpu and PREFIX.sb (default ptout)
+-e enumerate all processes in sideband
 EOU
 }
 
-unset COMM KERNEL TRACE USERMODE DISRETC DRIVER DONTDUMP PREFIX
+unset COMM KERNEL TRACE USERMODE DISRETC DRIVER DONTDUMP PREFIX ENUMALL
 
-while getopts "c:ktURdNo:" opt ; do
+while getopts "c:ktURdNo:e" opt ; do
 	case "$opt" in
 	c) COMM="$OPTARG" ;;
 	k) KERNEL=1 ;;
@@ -32,6 +33,7 @@ while getopts "c:ktURdNo:" opt ; do
 	d) DRIVER=1 ;;
 	N) DONTDUMP=1 ;;
 	o) PREFIX="$OPTARG" ;;
+	e) ENUMALL=1 ;;
 	\?) usage ; exit 1 ;;
 	*) break ;;
 	esac
@@ -46,6 +48,7 @@ DISRETC=${DISRETC:-0}
 DRIVER=${DRIVER:-}
 DONTDUMP=${DONTDUMP:-}
 PREFIX=${PREFIX:-ptout}
+ENUMALL=${ENUMALL:-0}
 
 PATH=$PATH:$(dirname $0)
 
@@ -70,6 +73,7 @@ echo $TRACE > $T/events/pttp/msr/enable
 echo 1 > $T/events/pttp/exec_cr3/enable
 echo 1 > $T/events/pttp/mmap_cr3/enable
 echo > $T/trace
+echo $ENUMALL > $C/enumerate_all
 echo 1 > $C/start
 "$@"
 echo 0 > $C/start
@@ -79,4 +83,5 @@ echo 0 > $T/events/pttp/msr/enable
 if [ -z "$DONTDUMP" ] ; then
 	sptdump $PREFIX
 	grep -v '^#' $T/trace > ${PREFIX}.sideband
+	echo "Wrote sideband to ${PREFIX}.sideband"
 fi
