@@ -47,11 +47,13 @@ int main(int ac, char **av)
 		int fd = open(fn, O_WRONLY|O_CREAT, 0644);
 		if (fd < 0)
 			err("Opening output file");
+
 		unsigned offset;
 		if (ioctl(pfds[i], SIMPLE_PT_GET_OFFSET, &offset) < 0) {
 			perror("SIMPLE_PT_GET_OFFSET");
 			continue;
 		}
+
 		unsigned len = 0;
 		if (*(uint64_t *)(pbuf[i] + offset))
 			len += write(fd, pbuf[i] + offset, bufsize - offset);
