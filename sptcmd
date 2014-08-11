@@ -5,7 +5,8 @@ usage() {
 	cat <<EOU
 Simple PT processor branch trace. The complete system is traced
 unless a comm filter is set, as long as cmd is executing.
-The output files are in ptout.CPU and sideband.
+The output files are in ptout.CPU and ptout.sideband
+When cmd has options please use -- to separate them from the sptcmd options.
 
 sptcmd [options] cmd
 -c COMM  Set comm filter for comm (only trace that command)
@@ -16,12 +17,13 @@ sptcmd [options] cmd
 -R disable return compression
 -d Always reload driver
 -N Don't dump data
+-o PREFIX Dump to PREFIX.cpu and PREFIX.sb (default ptout)
 EOU
 }
 
-unset COMM KERNEL TRACE USERMODE BINARY DISRETC DRIVER DONTDUMP
+unset COMM KERNEL TRACE USERMODE BINARY DISRETC DRIVER DONTDUMP PREFIX
 
-while getopts "c:ktUx:RdN" opt ; do
+while getopts "c:ktUx:RdNo:" opt ; do
 	case "$opt" in
 	c) COMM="$OPTARG" ;;
 	k) KERNEL=1 ;;
@@ -31,6 +33,7 @@ while getopts "c:ktUx:RdN" opt ; do
 	R) DISRETC=1 ;;
 	d) DRIVER=1 ;;
 	N) DONTDUMP=1 ;;
+	o) PREFIX="$OPTARG" ;;
 	\?) usage ; exit 1 ;;
 	*) break ;;
 	esac
@@ -45,6 +48,7 @@ BINARY=${BINARY:-}
 DISRETC=${DISRETC:-0}
 DRIVER=${DRIVER:-}
 DONTDUMP=${DONTDUMP:-}
+PREFIX=${PREFIX:-ptout}
 
 PATH=$PATH:$(dirname $0)
 
@@ -77,17 +81,17 @@ echo 0 > $C/start
 echo 0 > $T/events/pttp/exec_cr3/enable
 echo 0 > $T/events/pttp/mmap_cr3/enable
 if [ -z "$DONTDUMP" ] ;
-	sptdump
-	grep -v '^#' $T/trace > sideband
+	sptdump $PREFIX
+	grep -v '^#' $T/trace > ${PREFIX}.sideband
 fi
 if [ -n "$BINARY" ] ; then
 	if [ -n "$COMM" ] ; then
 		# XXX assumes program does not change CPUs
 		# FIXME
 		CPU=$(grep "$COMM-" sideband | awk ' { print $2 ; exit }' )
-		ptxed --pt ptout.$CPU --elf "$BINARY"
+		ptxed --pt ${PREFIX}.$CPU --elf "$BINARY"
 	else
-		for i in ptout.* ; do
+		for i in ${PREFIX}.* ; do
 			ptxed --pt $i --elf "$BINARY"
 		done
 	fi
