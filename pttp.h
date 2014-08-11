@@ -61,9 +61,27 @@ TRACE_EVENT(process_cr3,
 	      __entry->cr3,
 	      __get_str(comm_)));
 
+/* Trace MSR access */
+
+TRACE_EVENT(msr,
+    TP_PROTO(u32 msr, u64 val, int failed, int read),
+    TP_ARGS(msr, val, failed, read),
+    TP_STRUCT__entry(
+	    __field(u32, msr)
+	    __field(u64, val)
+	    __field(int, failed)
+	    __field(int, read)),
+    TP_fast_assign(
+	    __entry->msr = msr;
+	    __entry->val = val;
+	    __entry->failed = failed;
+	    __entry->read = read;),
+    TP_printk("msr=%x %s %llx %s",
+	      __entry->msr,
+	      __entry->read ? "->" : "<-",
+	      __entry->val,
+	      __entry->failed ? "failed" : ""));
+
 #endif
 
 #include <trace/define_trace.h>
-	    
-		    
-		    

@@ -10,7 +10,6 @@
    */
 
 #define DEBUG 1
-#define TRACE_MSRS 1 /* set to 0 to disable trace_printk usage */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
@@ -119,9 +118,6 @@ MODULE_PARM_DESC(dis_retc, "Disable return compression");
 static bool clear_on_start = true;
 module_param(clear_on_start, bool, 0644);
 MODULE_PARM_DESC(clear_on_start, "Clear PT buffer before start");
-static bool trace_msrs = false;
-module_param(trace_msrs, bool, 0644);
-MODULE_PARM_DESC(trace_msrs, "Trace all PT MSRs");
 static bool single_range = false;
 module_param(single_range, bool, 0444);
 MODULE_PARM_DESC(single_range, "Use single range output");
@@ -134,16 +130,14 @@ static DEFINE_MUTEX(restart_mutex);
 static inline int pt_wrmsrl_safe(unsigned msr, u64 val)
 {
 	int ret = wrmsrl_safe(msr, val);
-	if (TRACE_MSRS && trace_msrs)
-		trace_printk("msr %x -> %llx, %d\n", msr, val, ret);
+	trace_msr(msr, val, ret != 0, 0);
 	return ret;
 }
 
 static inline int pt_rdmsrl_safe(unsigned msr, u64 *val)
 {
 	int ret = rdmsrl_safe(msr, val);
-	if (TRACE_MSRS && trace_msrs)
-		trace_printk("msr %x <- %llx\n", msr, ret == 0 ? *val : -1LL);
+	trace_msr(msr, *val, ret != 0, 1);
 	return ret;
 }
 
