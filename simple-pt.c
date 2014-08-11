@@ -440,6 +440,21 @@ static struct notifier_block cpu_notifier = {
 	.notifier_call = simple_pt_cpu,
 };
 
+/* Stop PT on all CPUs so that a crash dump has a good log */
+static int simple_pt_panic(struct notifier_block *nb, unsigned long action,
+			   void *v)
+{
+	/* Assumes the interrupts are still on. Should send a NMI?
+	 * We don't wait to avoid any deadlocks.
+	 */
+	on_each_cpu(stop_pt, NULL, 0);
+	return NOTIFY_OK;
+}
+
+static struct notifier_block panic_notifier = {
+	.notifier_call = simple_pt_panic,
+};
+
 static void free_all_buffers(void);
 
 static int simple_pt_init(void)
@@ -487,6 +502,8 @@ static int simple_pt_init(void)
 		/* Ignore error */
 	}
 
+	atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
+
 	initialized = true;
 	if (start)
 		restart();
@@ -523,9 +540,8 @@ static void simple_pt_exit(void)
 	free_all_buffers();
 	misc_deregister(&simple_pt_miscdev);
 	compat_unregister_trace_sched_process_exec(probe_sched_process_exec, NULL);
-#ifdef CONFIG_X86_64
 	unregister_kprobe(&mmap_kp);
-#endif
+	atomic_notifier_chain_unregister(&panic_notifier_list, &panic_notifier);
 	pr_info("exited\n");
 }
 
