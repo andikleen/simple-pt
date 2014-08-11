@@ -43,6 +43,24 @@ TRACE_EVENT(mmap_cr3,
 		      __entry->len,
 		      __get_str(filename)));
 
+/* Initial enumeration of all processes with their cr3 */
+
+TRACE_EVENT(process_cr3,
+    TP_PROTO(pid_t pid, u64 cr3, char *comm),
+    TP_ARGS(pid, cr3, comm),
+    TP_STRUCT__entry(
+	    __field(pid_t, pid)
+	    __field(u64, cr3)
+	    __string(comm_, comm)),
+    TP_fast_assign(
+	    __assign_str(comm_, comm);
+	    __entry->cr3 = cr3;
+	    __entry->pid = pid;),
+    TP_printk("pid=%u cr3=%llx, comm=%s",
+	      __entry->pid,
+	      __entry->cr3,
+	      __get_str(comm_)));
+
 #endif
 
 #include <trace/define_trace.h>

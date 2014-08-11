@@ -7,7 +7,6 @@
    Test old kernels
    Test CPU hotplug
    Test 32bit
-   Enumerate all processes' CR3 at start
    */
 
 #define DEBUG 1
@@ -69,6 +68,20 @@ static struct kernel_param_ops resync_ops = {
 	.get = param_get_int,
 };
 
+static void do_enumerate_all(void);
+
+static int enumerate_set(const char *val, const struct kernel_param *kp)
+{
+	int ret = param_set_int(val, kp);
+	do_enumerate_all();
+	return ret;
+}
+
+static struct kernel_param_ops enumerate_ops = {
+	.set = enumerate_set,
+	.get = param_get_bool,
+};
+
 static DEFINE_PER_CPU(unsigned long, pt_buffer_cpu);
 static DEFINE_PER_CPU(u64 *, topa_cpu);
 static DEFINE_PER_CPU(bool, pt_running);
@@ -110,6 +123,9 @@ MODULE_PARM_DESC(trace_msrs, "Trace all PT MSRs");
 static bool single_range = false;
 module_param(single_range, bool, 0444);
 MODULE_PARM_DESC(single_range, "Use single range output");
+static bool enumerate_all = false;
+module_param_cb(enumerate_all, &enumerate_ops, &enumerate_all, 0644);
+MODULE_PARM_DESC(enumerate_all, "Enumerate all processes CR3s and executables");
 
 static DEFINE_MUTEX(restart_mutex);
 
@@ -221,6 +237,22 @@ static void restart(void)
 	mutex_lock(&restart_mutex);
 	on_each_cpu(start ? do_start_pt : stop_pt, NULL, 1);
 	mutex_unlock(&restart_mutex);
+}
+
+static void do_enumerate_all(void)
+{
+	struct task_struct *t;
+	/* XXX, better way? */
+	rwlock_t *my_tasklist_lock = (rwlock_t *)kallsyms_lookup_name("tasklist_lock");
+
+	read_lock(my_tasklist_lock);
+	for_each_process (t) {
+		if ((t->flags & PF_KTHREAD) || !t->mm)
+			continue;
+		/* Cannot get the file name here, leave that to user space */
+		trace_process_cr3(t->pid, (u64)(t->mm->pgd), t->comm);
+	}
+	read_unlock(my_tasklist_lock);
 }
 
 static void simple_pt_cpu_init(void *arg)
