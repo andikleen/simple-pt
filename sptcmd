@@ -72,6 +72,7 @@ T=/sys/kernel/debug/tracing
 echo $TRACE > $T/events/pttp/msr/enable
 echo 1 > $T/events/pttp/exec_cr3/enable
 echo 1 > $T/events/pttp/mmap_cr3/enable
+echo 1 > $T/events/pttp/process_cr3/enable
 echo > $T/trace
 echo $ENUMALL > $C/enumerate_all
 echo 1 > $C/start
@@ -79,6 +80,7 @@ echo 1 > $C/start
 echo 0 > $C/start
 echo 0 > $T/events/pttp/exec_cr3/enable
 echo 0 > $T/events/pttp/mmap_cr3/enable
+echo 0 > $T/events/pttp/process_cr3/enable
 echo 0 > $T/events/pttp/msr/enable
 if [ -z "$DONTDUMP" ] ; then
 	sptdump $PREFIX
