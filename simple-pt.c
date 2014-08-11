@@ -411,7 +411,7 @@ static int probe_mmap_region(struct kprobe *kp, struct pt_regs *regs)
 #endif
 	char *pathbuf, *path;
 
-	if (!(vm_flags & VM_EXEC))
+	if (!(vm_flags & VM_EXEC) || !file)
 		return 0;
 
 	if (!match_comm())
