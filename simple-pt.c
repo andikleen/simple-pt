@@ -127,7 +127,7 @@ module_param(single_range, bool, 0444);
 MODULE_PARM_DESC(single_range, "Use single range output");
 static int enumerate_all = 0;
 module_param_cb(enumerate_all, &enumerate_ops, &enumerate_all, 0644);
-MODULE_PARM_DESC(enumerate_all, "Enumerate all processes CR3s");
+MODULE_PARM_DESC(enumerate_all, "Enumerate all processes CR3s (only use afer initialization)");
 
 static DEFINE_MUTEX(restart_mutex);
 
