@@ -2,8 +2,8 @@
 /* Author: Andi Kleen */
 /* Notebook:
    Add stop-on-kprobe
-   Support single range
    Multiple entry toPA
+   Auto probe largest buffer
    Test old kernels
    Test CPU hotplug
    Test 32bit
@@ -105,6 +105,9 @@ MODULE_PARM_DESC(clear_on_start, "Clear PT buffer before start");
 static bool trace_msrs = false;
 module_param(trace_msrs, bool, 0644);
 MODULE_PARM_DESC(trace_msrs, "Trace all PT MSRs");
+static bool single_range = false;
+module_param(single_range, bool, 0444);
+MODULE_PARM_DESC(single_range, "Use single range output");
 
 static DEFINE_MUTEX(restart_mutex);
 
@@ -150,8 +153,10 @@ static int start_pt(void)
 		pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
 	}
 
-	val |= TRACE_EN | TO_PA;
-	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC);
+	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC | TO_PA);
+	val |= TRACE_EN;
+	if (!single_range)
+		val |= TO_PA;
 	if (tsc_en)
 		val |= TSC_EN;
 	if (kernel)
@@ -231,21 +236,27 @@ static void simple_pt_cpu_init(void *arg)
 	}
 	__get_cpu_var(pt_buffer_cpu) = pt_buffer;
 
-	/* allocate topa */
-	topa = (u64 *)__get_free_page(GFP_KERNEL|__GFP_ZERO);
-	if (!topa) {
-		pr_err("cpu %d, Cannot allocate topa page\n", cpu);
-		pt_error = -ENOMEM;
-		goto out_pt_buffer;
+	if (!single_range) {
+		/* allocate topa */
+		topa = (u64 *)__get_free_page(GFP_KERNEL|__GFP_ZERO);
+		if (!topa) {
+			pr_err("cpu %d, Cannot allocate topa page\n", cpu);
+			pt_error = -ENOMEM;
+			goto out_pt_buffer;
+		}
+		__get_cpu_var(topa_cpu) = topa;
+
+		/* create circular single entry topa table */
+		topa[0] = (u64)__pa(pt_buffer) | (pt_buffer_order << TOPA_SIZE_SHIFT);
+		topa[1] = (u64)__pa(topa) | TOPA_END; /* circular buffer */
+		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(topa));
+		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
+	} else {
+		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(pt_buffer));
+		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS,
+				((1ULL << (PAGE_SHIFT + pt_buffer_order)) - 1));
 	}
-	__get_cpu_var(topa_cpu) = topa;
 
-	/* create circular single entry topa table */
-	topa[0] = (u64)__pa(pt_buffer) | (pt_buffer_order << TOPA_SIZE_SHIFT);
-	topa[1] = (u64)__pa(topa) | TOPA_END; /* circular buffer */
-
-	pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(topa_cpu)));
-	pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
 	pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
 	return;
 
@@ -472,7 +483,7 @@ static int simple_pt_init(void)
 		return -EIO;
 	}
 	cpuid_count(0x14, 0, &a, &b, &c, &d);
-	if (!(c & BIT(0))) {
+	if (!single_range && !(c & BIT(0))) {
 		pr_info("No ToPA support\n");
 		return -EIO;
 	}
