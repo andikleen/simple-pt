@@ -146,6 +146,7 @@ static int start_pt(void)
 	if (clear_on_start && !(val & TRACE_EN)) {
 		memset((void *)__get_cpu_var(pt_buffer_cpu), 0, PAGE_SIZE << pt_buffer_order);
 		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
+		pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
 	}
 
 	val |= TRACE_EN | TO_PA;
@@ -244,6 +245,7 @@ static void simple_pt_cpu_init(void *arg)
 
 	pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(__get_cpu_var(topa_cpu)));
 	pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
+	pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
 	return;
 
 out_pt_buffer:
