@@ -72,7 +72,7 @@ static void do_enumerate_all(void);
 
 static int enumerate_set(const char *val, const struct kernel_param *kp)
 {
-	int ret = param_set_int(val, kp);
+	int ret = param_set_bool(val, kp);
 	do_enumerate_all();
 	return ret;
 }
