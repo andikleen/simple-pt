@@ -137,6 +137,15 @@ static u64 rtit_status(void)
 	return status;
 }
 
+static void init_mask_ptrs(void)
+{
+	if (single_range)
+		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS,
+			((1ULL << (PAGE_SHIFT + pt_buffer_order)) - 1));
+	else
+		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
+}
+
 static int start_pt(void)
 {
 	u64 val, oldval;
@@ -151,11 +160,7 @@ static int start_pt(void)
 
 	if (clear_on_start && !(val & TRACE_EN)) {
 		memset((void *)__get_cpu_var(pt_buffer_cpu), 0, PAGE_SIZE << pt_buffer_order);
-		if (single_range)
-			pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS,
-				((1ULL << (PAGE_SHIFT + pt_buffer_order)) - 1));
-		else
-			pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
+		init_mask_ptrs();
 		pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
 	}
 
@@ -256,12 +261,10 @@ static void simple_pt_cpu_init(void *arg)
 		topa[0] = (u64)__pa(pt_buffer) | (pt_buffer_order << TOPA_SIZE_SHIFT);
 		topa[1] = (u64)__pa(topa) | TOPA_END; /* circular buffer */
 		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(topa));
-		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
 	} else {
 		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(pt_buffer));
-		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS,
-				((1ULL << (PAGE_SHIFT + pt_buffer_order)) - 1));
 	}
+	init_mask_ptrs();
 
 	pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
 	return;
