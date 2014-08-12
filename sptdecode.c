@@ -1,8 +1,11 @@
 /* Decoder using libipt for simple-pt */
 #include <intel-pt.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "map.h"
+#include "elf.h"
+#include "symtab.h"
 
 static void print_event(struct pt_insn *insn)
 {
@@ -35,31 +38,8 @@ static void print_tsx(struct pt_insn *insn, int *prev_spec, int *indent)
 	}
 }
 
-static int decode(char *fn)
+static int decode(struct pt_insn_decoder *decoder)
 {
-	struct pt_config config = { 0, };
-
-	if (pt_configure(&config) < 0) {
-		fprintf(stderr, "pt configuration failed\n");
-		return 1;
-	}
-	/* XXX configure cpu */
-	size_t len;
-	unsigned char *map = mapfile(fn, &len);
-	if (!map) {
-		perror(fn);
-		return 1;
-	}
-	config.size = sizeof(struct pt_config);
-	config.begin = map;
-	config.end = map + len;
-
-	struct pt_insn_decoder *decoder = pt_insn_alloc_decoder(&config);
-	if (!decoder) {
-		fprintf(stderr, "Cannot create PT decoder\n");
-		exit(1);
-	}
-
 	for (;;) {
 		uint64_t pos;
 		int err = pt_insn_sync_forward(decoder);
@@ -113,9 +93,56 @@ static int decode(char *fn)
 	return 0;
 }
 
+struct pt_insn_decoder *init_decoder(char *fn)
+{
+	struct pt_config config = { 0, };
+
+	if (pt_configure(&config) < 0) {
+		fprintf(stderr, "pt configuration failed\n");
+		return NULL;
+	}
+	/* XXX configure cpu */
+	size_t len;
+	unsigned char *map = mapfile(fn, &len);
+	if (!map) {
+		perror(fn);
+		return NULL;
+	}
+	config.size = sizeof(struct pt_config);
+	config.begin = map;
+	config.end = map + len;
+
+	struct pt_insn_decoder *decoder = pt_insn_alloc_decoder(&config);
+	if (!decoder) {
+		fprintf(stderr, "Cannot create PT decoder\n");
+		return NULL;
+	}
+
+	return decoder;
+}
+
+void usage(void)
+{
+	fprintf(stderr, "sptdecode ptfile .. --elf elffile ...\n");
+	exit(1);
+}
+
 int main(int ac, char **av)
 {
-	while (*++av)
-		decode(*av);
+	struct pt_insn_decoder *decoder = NULL;
+	while (*++av) {
+		if (!strcmp(*av, "--elf")) {
+			if (!decoder) {
+				fprintf(stderr, "Specify PT file before ELF files\n");
+				usage();
+			}
+			if (!*++av) 
+				usage();
+			read_elf(*av, decoder, 0);
+			continue;
+		}
+		decoder = init_decoder(*av);
+	}
+	decode(decoder);
 	return 0;
 }

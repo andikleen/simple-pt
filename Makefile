@@ -32,6 +32,7 @@ map.o: map.c map.h
 fastdecode: fastdecode.o map.o
 
 sptdecode.o: CFLAGS += -I ${LIBIPT_INCLUDE}
+elf.o: CFLAGS += -I ${LIBIPT_INCLUDE}
 sptdecode: LDFLAGS := -L ${LIBIPT_LIB}
-sptdecode: LDLIBS := -lipt
-sptdecode: sptdecode.o map.o
+sptdecode: LDLIBS := -lipt -lelf
+sptdecode: sptdecode.o map.o elf.o symtab.o
