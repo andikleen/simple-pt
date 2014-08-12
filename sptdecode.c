@@ -36,6 +36,19 @@ static void print_tsx(struct pt_insn *insn, int *prev_spec, int *indent)
 		printf("%*scommitted\n", *indent, "");
 		*indent -= 4;
 	}
+	if (*indent < 0)
+		*indent = 0;
+}
+
+static void print_ip(uint64_t ip)
+{
+	struct sym *sym = findsym(ip);
+	if (sym) {
+		printf("%s", sym->name);
+		if (ip - sym->val > 0)
+			printf("+%ld", ip - sym->val);
+	} else
+		printf("%lx", ip);
 }
 
 static int decode(struct pt_insn_decoder *decoder)
@@ -68,7 +81,11 @@ static int decode(struct pt_insn_decoder *decoder)
 				err = pt_insn_next(decoder, &insn);
 				if (err < 0)
 					continue;
-				printf("%.*scall %lx->%lx\n", indent, "", orig_ip, insn.ip);
+				printf("%*scall ", indent, "");
+				print_ip(orig_ip);
+				printf(" -> ");
+				print_ip(insn.ip);
+				putchar('\n');
 				indent += 4;
 				break;
 			}
