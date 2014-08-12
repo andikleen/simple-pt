@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <getopt.h>
 
 #include "map.h"
 #include "elf.h"
@@ -173,26 +174,43 @@ struct pt_insn_decoder *init_decoder(char *fn)
 
 void usage(void)
 {
-	fprintf(stderr, "sptdecode ptfile .. --elf elffile ...\n");
+	fprintf(stderr, "sptdecode --pt ptfile .. --elf elffile ...\n");
 	exit(1);
 }
+
+struct option opts[] = {
+	{ "elf", required_argument, NULL, 'e' },
+	{ "pt", required_argument, NULL, 'p' },
+	{ }
+};
 
 int main(int ac, char **av)
 {
 	struct pt_insn_decoder *decoder = NULL;
-	while (*++av) {
-		if (!strcmp(*av, "--elf")) {
+	int c;
+	while ((c = getopt_long(ac, av, "e:p:", opts, NULL)) != -1) {
+		switch (c) {
+		case 'e':
 			if (!decoder) {
 				fprintf(stderr, "Specify PT file before ELF files\n");
 				usage();
 			}
-			if (!*++av)
+			read_elf(optarg, decoder, 0);
+			break;
+		case 'p':
+			if (decoder) {
+				fprintf(stderr, "Only one PT file supported\n"); /* XXX */
 				usage();
-			read_elf(*av, decoder, 0);
-			continue;
+			}
+			decoder = init_decoder(optarg);
+			break;
+
+		default:
+			usage();
 		}
-		decoder = init_decoder(*av);
 	}
+	if (ac - optind != 0)
+		usage();
 	decode(decoder);
 	return 0;
 }
