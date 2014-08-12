@@ -2,6 +2,7 @@
 #include <intel-pt.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "map.h"
 #include "elf.h"
@@ -51,20 +52,25 @@ static void print_ip(uint64_t ip)
 		printf("%lx", ip);
 }
 
-static void print_time(struct pt_insn_decoder *decoder, uint64_t *last_ts,
-			uint64_t *first_ts)
+static bool print_time(struct pt_insn_decoder *decoder, uint64_t *last_ts,
+			uint64_t *first_ts, bool inhibit)
 {
 	uint64_t ts;
+	bool printed = false;
 
 	pt_insn_time(decoder, &ts);
-	if (*last_ts && ts != *last_ts)
-		printf("[%8lu][+%-4lu]  ", ts - *first_ts, ts - *last_ts);
-	else
-		printf("%*s", 19, "");
+	if (*last_ts && ts != *last_ts) {
+		char buf[30];
+		snprintf(buf, sizeof buf, "[%8lu][+%-lu]", ts - *first_ts, ts - *last_ts);
+		printf("%-20s", buf);
+		printed = true;
+	} else if (!inhibit)
+		printf("%*s", 20, "");
 	if (ts)
 		*last_ts = ts;
 	if (!*first_ts && ts)
 		*first_ts = ts;
+	return printed;
 }
 
 static int decode(struct pt_insn_decoder *decoder)
@@ -97,7 +103,7 @@ static int decode(struct pt_insn_decoder *decoder)
 			case ptic_far_call:
 			case ptic_call: {
 				uint64_t orig_ip = insn.ip;
-				print_time(decoder, &last_ts, &first_ts);
+				print_time(decoder, &last_ts, &first_ts, false);
 				err = pt_insn_next(decoder, &insn);
 				if (err < 0)
 					continue;
@@ -111,6 +117,12 @@ static int decode(struct pt_insn_decoder *decoder)
 			}
 			case ptic_far_return:
 			case ptic_return:
+				if (print_time(decoder, &last_ts, &first_ts, true)) {
+					printf("%*sreturn ", indent, "");
+					print_ip(insn.ip);
+					putchar('\n');
+				}
+
 				indent -= 4;
 				if (indent < 0)
 					indent = 0;
