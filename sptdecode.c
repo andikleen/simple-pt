@@ -1,4 +1,11 @@
 /* Decoder using libipt for simple-pt */
+
+/* Notebook:
+   Fast mode on packet level if no ELF file
+   Loop detector
+   Dwarf decoding
+   Multiple aligned input files
+   */
 #include <intel-pt.h>
 #include <stdio.h>
 #include <string.h>
