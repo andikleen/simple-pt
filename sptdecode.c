@@ -51,8 +51,27 @@ static void print_ip(uint64_t ip)
 		printf("%lx", ip);
 }
 
+static void print_time(struct pt_insn_decoder *decoder, uint64_t *last_ts,
+			uint64_t *first_ts)
+{
+	uint64_t ts;
+
+	pt_insn_time(decoder, &ts);
+	if (*last_ts && ts != *last_ts)
+		printf("[%8lu][+%-4lu]  ", ts - *first_ts, ts - *last_ts);
+	else
+		printf("%*s", 19, "");
+	if (ts)
+		*last_ts = ts;
+	if (!*first_ts && ts)
+		*first_ts = ts;
+}
+
 static int decode(struct pt_insn_decoder *decoder)
 {
+	uint64_t last_ts = 0;
+	uint64_t first_ts = 0;
+
 	for (;;) {
 		uint64_t pos;
 		int err = pt_insn_sync_forward(decoder);
@@ -78,6 +97,7 @@ static int decode(struct pt_insn_decoder *decoder)
 			case ptic_far_call:
 			case ptic_call: {
 				uint64_t orig_ip = insn.ip;
+				print_time(decoder, &last_ts, &first_ts);
 				err = pt_insn_next(decoder, &insn);
 				if (err < 0)
 					continue;
