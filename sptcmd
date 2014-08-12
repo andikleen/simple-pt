@@ -6,6 +6,7 @@ usage() {
 Simple PT processor branch trace. The complete system is traced
 unless a comm filter is set, as long as cmd is executing.
 The output files are in ptout.CPU and ptout.sideband
+
 When cmd has options please use -- to separate them from the sptcmd options.
 
 sptcmd [options] cmd
@@ -55,9 +56,9 @@ PATH=$PATH:$(dirname $0)
 [ -n "$DRIVER" ] && /sbin/rmmod simple_pt
 if ! lsmod | grep -q simple_pt ; then
 	if [ -r simple-pt.ko ] ; then
-		/sbin/insmod simple-pt.ko start=0
+		/sbin/insmod simple-pt.ko
 	else
-		/sbin/modprobe simple-pt start=0
+		/sbin/modprobe simple-pt
 	fi
 fi
 C=/sys/module/simple_pt/parameters
@@ -77,7 +78,7 @@ echo > $T/trace
 echo $ENUMALL > $C/enumerate_all
 if [ "$ENUMALL" != 0 ] ; then
 	grep . /proc/[0-9]*/maps > ${PREFIX}.maps
-	echo "Wrote process maps to ${PREFIX}.maps"
+	echo "Wrote initial process maps to ${PREFIX}.maps"
 fi
 echo 1 > $C/start
 "$@"
