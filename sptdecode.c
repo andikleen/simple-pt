@@ -112,7 +112,9 @@ static int decode(struct pt_insn_decoder *decoder)
 
 struct pt_insn_decoder *init_decoder(char *fn)
 {
-	struct pt_config config = { 0, };
+	struct pt_config config = {
+		.size = sizeof(struct pt_config)
+	};
 
 	if (pt_configure(&config) < 0) {
 		fprintf(stderr, "pt configuration failed\n");
@@ -125,7 +127,6 @@ struct pt_insn_decoder *init_decoder(char *fn)
 		perror(fn);
 		return NULL;
 	}
-	config.size = sizeof(struct pt_config);
 	config.begin = map;
 	config.end = map + len;
 
@@ -153,7 +154,7 @@ int main(int ac, char **av)
 				fprintf(stderr, "Specify PT file before ELF files\n");
 				usage();
 			}
-			if (!*++av) 
+			if (!*++av)
 				usage();
 			read_elf(*av, decoder, 0);
 			continue;
