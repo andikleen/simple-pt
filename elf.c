@@ -37,7 +37,7 @@ void read_symtab(Elf *elf)
 
 void add_progbits(Elf *elf, struct pt_insn_decoder *decoder, char *fn, uint64_t base)
 {
-	int64_t offset;
+	int64_t offset = 0;
 	size_t numphdr;
 	int i;
 
