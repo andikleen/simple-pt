@@ -25,15 +25,15 @@ static void print_tsx(struct pt_insn *insn, int *prev_spec, int *indent)
 {
 	if (insn->speculative != *prev_spec) {
 		*prev_spec = insn->speculative;
-		printf("%.*stransaction\n", *indent, "");
+		printf("%*stransaction\n", *indent, "");
 		*indent += 4;
 	}
 	if (insn->aborted) {
-		printf("%.*saborted\n", *indent, "");
+		printf("%*saborted\n", *indent, "");
 		*indent -= 4;
 	}
 	if (insn->committed) {
-		printf("%.*scommitted\n", *indent, "");
+		printf("%*scommitted\n", *indent, "");
 		*indent -= 4;
 	}
 }
