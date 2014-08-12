@@ -60,8 +60,22 @@ static void print_ip(uint64_t ip)
 		printf("%lx", ip);
 }
 
+double tsc_freq;
+
+static double tsc_us(uint64_t t)
+{
+	if (tsc_freq == 0)
+		return t;
+	return (t / (tsc_freq*1000));
+}
+
+static void print_time_indent(void)
+{
+	printf("%*s", 20, "");
+}
+
 static bool print_time(struct pt_insn_decoder *decoder, uint64_t *last_ts,
-			uint64_t *first_ts, bool inhibit)
+			uint64_t *first_ts)
 {
 	uint64_t ts;
 	bool printed = false;
@@ -69,11 +83,13 @@ static bool print_time(struct pt_insn_decoder *decoder, uint64_t *last_ts,
 	pt_insn_time(decoder, &ts);
 	if (*last_ts && ts != *last_ts) {
 		char buf[30];
-		snprintf(buf, sizeof buf, "[%8lu][+%-lu]", ts - *first_ts, ts - *last_ts);
+		snprintf(buf, sizeof buf, "%-9.*f [+%-.*f]", tsc_freq ? 3 : 0,
+				tsc_us(ts - *first_ts),
+				tsc_freq ? 3 : 0,
+				tsc_us(ts - *last_ts));
 		printf("%-20s", buf);
 		printed = true;
-	} else if (!inhibit)
-		printf("%*s", 20, "");
+	}
 	if (ts)
 		*last_ts = ts;
 	if (!*first_ts && ts)
@@ -98,39 +114,52 @@ static int decode(struct pt_insn_decoder *decoder)
 		struct pt_insn insn;
 		int indent = 0;
 		int prev_spec = 0;
+		unsigned long insncnt = 0;
 		while (!err) {
+			bool has_time = false;
+
 			err = pt_insn_next(decoder, &insn);
 			if (err < 0)
 				break;
+			insncnt++;
 			if (insn.speculative || insn.aborted || insn.committed)
 				print_tsx(&insn, &prev_spec, &indent);
 			if (insn.disabled || insn.enabled || insn.resumed ||
 			    insn.interrupted || insn.resynced)
 				print_event(&insn);
+			if (print_time(decoder, &last_ts, &first_ts)) {
+				if (insn.iclass != ptic_call || insn.iclass != ptic_far_call) {
+					printf("%*s[+%4lu] ", indent, "", insncnt);
+					insncnt = 0;
+					if (insn.iclass == ptic_return || insn.iclass == ptic_far_return)
+						printf("return ");
+					print_ip(insn.ip);
+					putchar('\n');
+				}
+				has_time = true;
+			}
 			switch (insn.iclass) {
 			case ptic_far_call:
 			case ptic_call: {
 				uint64_t orig_ip = insn.ip;
-				print_time(decoder, &last_ts, &first_ts, false);
 				err = pt_insn_next(decoder, &insn);
 				if (err < 0)
 					continue;
+				if (!has_time)
+					print_time_indent();
+				printf("[+%4lu] ", insncnt);
 				printf("%*scall ", indent, "");
 				print_ip(orig_ip);
 				printf(" -> ");
 				print_ip(insn.ip);
 				putchar('\n');
+				insncnt = 0;
 				indent += 4;
+				insncnt++;
 				break;
 			}
 			case ptic_far_return:
 			case ptic_return:
-				if (print_time(decoder, &last_ts, &first_ts, true)) {
-					printf("%*sreturn ", indent, "");
-					print_ip(insn.ip);
-					putchar('\n');
-				}
-
 				indent -= 4;
 				if (indent < 0)
 					indent = 0;
@@ -182,12 +211,14 @@ struct pt_insn_decoder *init_decoder(char *fn)
 void usage(void)
 {
 	fprintf(stderr, "sptdecode --pt ptfile .. --elf elffile ...\n");
+	fprintf(stderr, "--freq/-f freq  Use frequency to convert time stamps\n");
 	exit(1);
 }
 
 struct option opts[] = {
 	{ "elf", required_argument, NULL, 'e' },
 	{ "pt", required_argument, NULL, 'p' },
+	{ "freq", required_argument, NULL, 'f' },
 	{ }
 };
 
@@ -195,7 +226,8 @@ int main(int ac, char **av)
 {
 	struct pt_insn_decoder *decoder = NULL;
 	int c;
-	while ((c = getopt_long(ac, av, "e:p:", opts, NULL)) != -1) {
+	while ((c = getopt_long(ac, av, "e:p:f:", opts, NULL)) != -1) {
+		char *end;
 		switch (c) {
 		case 'e':
 			if (!decoder) {
@@ -211,12 +243,17 @@ int main(int ac, char **av)
 			}
 			decoder = init_decoder(optarg);
 			break;
+		case 'f':
+			tsc_freq = strtod(optarg, &end);
+			if (end == optarg)
+				usage();
+			break;
 
 		default:
 			usage();
 		}
 	}
-	if (ac - optind != 0)
+	if (ac - optind != 0 || !decoder)
 		usage();
 	decode(decoder);
 	return 0;

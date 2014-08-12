@@ -7,7 +7,7 @@ $freq=1.8;
 
 if (/tsc/) {
 	@n=split;
-	printf "%.6f\t", (hex($n[2]) - hex($prev)) / (1000000*$freq);
+	printf "%.6f\t", (hex($n[2]) - hex($prev)) / (1000*$freq);
 	$prev = $n[2];
 } else { 
 	print "\t\t";
