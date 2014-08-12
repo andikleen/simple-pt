@@ -179,6 +179,15 @@ static int decode(struct pt_insn_decoder *decoder)
 	return 0;
 }
 
+static void print_header(void)
+{
+	printf("%-10s %-5s  %7s   %s\n",
+		"TIME",
+		"DELTA",
+		"INSNs",
+		"OPERATION");
+}
+
 struct pt_insn_decoder *init_decoder(char *fn)
 {
 	struct pt_config config = {
@@ -255,6 +264,7 @@ int main(int ac, char **av)
 	}
 	if (ac - optind != 0 || !decoder)
 		usage();
+	print_header();
 	decode(decoder);
 	return 0;
 }
