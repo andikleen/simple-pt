@@ -97,6 +97,17 @@ static bool print_time(struct pt_insn_decoder *decoder, uint64_t *last_ts,
 	return printed;
 }
 
+int dump_insn;
+
+static void print_insn(struct pt_insn *insn)
+{
+	int i;
+	printf("%lx insn:", insn->ip);
+	for (i = 0; i < insn->size; i++)
+		printf(" %02x", insn->raw[i]);
+	printf("\n");
+}
+
 static int decode(struct pt_insn_decoder *decoder)
 {
 	uint64_t last_ts = 0;
@@ -122,6 +133,8 @@ static int decode(struct pt_insn_decoder *decoder)
 			if (err < 0)
 				break;
 			insncnt++;
+			if (dump_insn)
+				print_insn(&insn);
 			if (insn.speculative || insn.aborted || insn.committed)
 				print_tsx(&insn, &prev_spec, &indent);
 			if (insn.disabled || insn.enabled || insn.resumed ||
@@ -172,7 +185,7 @@ static int decode(struct pt_insn_decoder *decoder)
 			if (err == -pte_eos)
 				break;
 			pt_insn_get_offset(decoder, &pos);
-			printf("%lx:%lx: %s\n", pos, insn.ip,
+			printf("%lx:%lx: error %s\n", pos, insn.ip,
 					pt_errstr(pt_errcode(err)));
 		}
 	}
@@ -219,8 +232,9 @@ struct pt_insn_decoder *init_decoder(char *fn)
 
 void usage(void)
 {
-	fprintf(stderr, "sptdecode --pt ptfile .. --elf elffile ...\n");
-	fprintf(stderr, "--freq/-f freq  Use frequency to convert time stamps\n");
+	fprintf(stderr, "sptdecode --pt ptfile --elf elffile ...\n");
+	fprintf(stderr, "--freq/-f freq  Use frequency to convert time stamps (Ghz)\n");
+	fprintf(stderr, "--insn/-i dump instruction bytes\n");
 	exit(1);
 }
 
@@ -228,6 +242,7 @@ struct option opts[] = {
 	{ "elf", required_argument, NULL, 'e' },
 	{ "pt", required_argument, NULL, 'p' },
 	{ "freq", required_argument, NULL, 'f' },
+	{ "insn", no_argument, NULL, 'i' },
 	{ }
 };
 
@@ -235,7 +250,7 @@ int main(int ac, char **av)
 {
 	struct pt_insn_decoder *decoder = NULL;
 	int c;
-	while ((c = getopt_long(ac, av, "e:p:f:", opts, NULL)) != -1) {
+	while ((c = getopt_long(ac, av, "e:p:f:i", opts, NULL)) != -1) {
 		char *end;
 		switch (c) {
 		case 'e':
@@ -247,7 +262,7 @@ int main(int ac, char **av)
 			break;
 		case 'p':
 			if (decoder) {
-				fprintf(stderr, "Only one PT file supported\n"); /* XXX */
+				fprintf(stderr, "Only one PT file supported\n");
 				usage();
 			}
 			decoder = init_decoder(optarg);
@@ -257,7 +272,9 @@ int main(int ac, char **av)
 			if (end == optarg)
 				usage();
 			break;
-
+		case 'i':
+			dump_insn = 1;
+			break;
 		default:
 			usage();
 		}
