@@ -217,8 +217,8 @@ struct pt_insn_decoder *init_decoder(char *fn)
 	size_t len;
 	unsigned char *map = mapfile(fn, &len);
 	if (!map) {
-		perror(fn);
-		return NULL;
+		fprintf(stderr, "Cannot open PT file %s: %s\n", fn, strerror(errno));
+		exit(1);
 	}
 	config.begin = map;
 	config.end = map + len;
