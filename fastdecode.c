@@ -128,8 +128,10 @@ void decode_buffer(unsigned char *map, size_t len)
 		unsigned char *prev = p;
 		/* look for PSB */
 		p = memmem(p, end - p, psb, 16);
-		if (!p)
+		if (!p) {
+			p = end;
 			break;
+		}
 		skipped += p - prev;
 		while (p < end) {
 			printf("%lx\t", p - map);

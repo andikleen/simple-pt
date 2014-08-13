@@ -22,7 +22,7 @@ static void print_event(struct pt_insn *insn)
 {
 	if (insn->disabled)
 		printf("disabled\n");
-	if (insn->enabled);
+	if (insn->enabled)
 		printf("enabled\n");
 	if (insn->resumed)
 		printf("resumed\n");
@@ -124,7 +124,7 @@ static int decode(struct pt_insn_decoder *decoder)
 			break;
 		}
 
-		struct pt_insn insn;
+		struct pt_insn insn = { 0, };
 		int indent = 0;
 		int prev_spec = 0;
 		unsigned long insncnt = 0;
@@ -183,13 +183,11 @@ static int decode(struct pt_insn_decoder *decoder)
 				break;
 			}
 		}
-		if (err) {
-			if (err == -pte_eos)
-				break;
-			pt_insn_get_offset(decoder, &pos);
-			printf("%lx:%lx: error %s\n", pos, insn.ip,
-					pt_errstr(pt_errcode(err)));
-		}
+		if (err == -pte_eos)
+			break;
+		pt_insn_get_offset(decoder, &pos);
+		printf("%lx:%lx: error %s\n", pos, insn.ip,
+				pt_errstr(pt_errcode(err)));
 	}
 	return 0;
 }
@@ -257,10 +255,11 @@ static void load_sideband(char *fn, struct pt_insn_decoder *decoder)
 			n++;
 		/* timestamp ignored for now */
 		char *p = strchr(line + n, '\n');
-		if (p)
+		if (p) {
 			*p = 0;
-		while (--p >= line + n && isspace(*p))
-			*p = 0;
+			while (--p >= line + n && isspace(*p))
+				*p = 0;
+		}
 		if (read_elf(line + n, decoder, addr, cr3)) {
 			fprintf(stderr, "Cannot read %s: %s\n", line + n, strerror(errno));
 		}

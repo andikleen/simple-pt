@@ -7,9 +7,13 @@ struct symtab *symtabs;
 struct symtab *add_symtab(unsigned num)
 {
 	struct symtab *st = malloc(sizeof(struct symtab));
+	if (!st)
+		exit(ENOMEM);
 	st->num = num;
 	st->next = symtabs;
 	st->syms = malloc(num * sizeof(struct sym));
+	if (!st->syms)
+		exit(ENOMEM);
 	symtabs = st;
 	return st;
 }
