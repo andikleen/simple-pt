@@ -255,7 +255,8 @@ static void load_sideband(char *fn, struct pt_insn_decoder *decoder)
 		}
 		while (isspace(line[n]))
 			n++;
-		/* timestamp ignored for now */
+		/* timestamp ignored for now. could later be used to distinguish
+		   reused CR3s or reused address space. */
 		char *p = strchr(line + n, '\n');
 		if (p) {
 			*p = 0;
