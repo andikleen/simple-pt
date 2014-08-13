@@ -233,8 +233,10 @@ struct pt_insn_decoder *init_decoder(char *fn)
 void usage(void)
 {
 	fprintf(stderr, "sptdecode --pt ptfile --elf elffile ...\n");
-	fprintf(stderr, "--freq/-f freq  Use frequency to convert time stamps (Ghz)\n");
-	fprintf(stderr, "--insn/-i dump instruction bytes\n");
+	fprintf(stderr, "-p/--pt ptfile   PT input file. Required and must before --elf\n");
+	fprintf(stderr, "-e/--elf binary  ELF input PT files. Can be specified multiple times.\n");
+	fprintf(stderr, "--freq/-f freq   Use frequency to convert time stamps (Ghz)\n");
+	fprintf(stderr, "--insn/-i        dump instruction bytes\n");
 	exit(1);
 }
 
