@@ -73,7 +73,7 @@ static double tsc_us(uint64_t t)
 
 static void print_time_indent(void)
 {
-	printf("%*s", 20, "");
+	printf("%*s", 24, "");
 }
 
 static bool print_time(struct pt_insn_decoder *decoder, uint64_t *last_ts,
@@ -85,11 +85,12 @@ static bool print_time(struct pt_insn_decoder *decoder, uint64_t *last_ts,
 	pt_insn_time(decoder, &ts);
 	if (*last_ts && ts != *last_ts) {
 		char buf[30];
+		double rtime = tsc_us(ts - *first_ts);
 		snprintf(buf, sizeof buf, "%-9.*f [+%-.*f]", tsc_freq ? 3 : 0,
-				tsc_us(ts - *first_ts),
+				rtime,
 				tsc_freq ? 3 : 0,
 				tsc_us(ts - *last_ts));
-		printf("%-20s", buf);
+		printf("%-24s", buf);
 		printed = true;
 	}
 	if (ts)
@@ -150,8 +151,8 @@ static int decode(struct pt_insn_decoder *decoder)
 						printf("return ");
 					print_ip(insn.ip);
 					putchar('\n');
-				}
-				has_time = true;
+				} else
+					has_time = true;
 			}
 			switch (insn.iclass) {
 			case ptic_far_call:
@@ -159,7 +160,7 @@ static int decode(struct pt_insn_decoder *decoder)
 				uint64_t orig_ip = insn.ip;
 				err = pt_insn_next(decoder, &insn);
 				if (err < 0)
-					continue;
+					goto handle_err;
 				if (!has_time)
 					print_time_indent();
 				printf("[+%4lu] ", insncnt);
@@ -183,6 +184,7 @@ static int decode(struct pt_insn_decoder *decoder)
 				break;
 			}
 		}
+	handle_err:
 		if (err == -pte_eos)
 			break;
 		pt_insn_get_offset(decoder, &pos);
