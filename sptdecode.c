@@ -4,13 +4,15 @@
    Fast mode on packet level if no ELF file
    Loop detector
    Dwarf decoding
-   Multiple aligned input files
    */
+#define _GNU_SOURCE 1
 #include <intel-pt.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
 #include <getopt.h>
+#include <ctype.h>
+#include <errno.h>
 
 #include "map.h"
 #include "elf.h"
@@ -230,11 +232,50 @@ struct pt_insn_decoder *init_decoder(char *fn)
 	return decoder;
 }
 
+/* Sideband format:
+timestamp cr3 load-address path-to-binary
+ */
+static void load_sideband(char *fn, struct pt_insn_decoder *decoder)
+{
+	FILE *f = fopen(fn, "r");
+	if (!f) {
+		fprintf(stderr, "Cannot open %s: %s\n", fn, strerror(errno));
+		exit(1);
+	}
+	char *line = NULL;
+	size_t linelen = 0;
+	int lineno = 1;
+	while (getline(&line, &linelen, f) > 0) {
+		uint64_t ts, cr3, addr;
+		int n;
+
+		if (sscanf(line, "%lx %lx %lx %n", &ts, &cr3, &addr, &n) != 3) {
+			fprintf(stderr, "%s:%d: Parse error\n", fn, lineno);
+			exit(1);
+		}
+		while (isspace(line[n]))
+			n++;
+		/* timestamp ignored for now */
+		char *p = strchr(line + n, '\n');
+		if (p)
+			*p = 0;
+		while (--p >= line + n && isspace(*p))
+			*p = 0;
+		if (read_elf(line + n, decoder, addr, cr3)) {
+			fprintf(stderr, "Cannot read %s: %s\n", line + n, strerror(errno));
+		}
+
+	}
+	free(line);
+	fclose(f);
+}
+
 void usage(void)
 {
 	fprintf(stderr, "sptdecode --pt ptfile --elf elffile ...\n");
-	fprintf(stderr, "-p/--pt ptfile   PT input file. Required and must before --elf\n");
+	fprintf(stderr, "-p/--pt ptfile   PT input file. Required and must before --elf/-s\n");
 	fprintf(stderr, "-e/--elf binary  ELF input PT files. Can be specified multiple times.\n");
+	fprintf(stderr, "-s/--sideband log  Load side band log. Needs access to binaries\n");
 	fprintf(stderr, "--freq/-f freq   Use frequency to convert time stamps (Ghz)\n");
 	fprintf(stderr, "--insn/-i        dump instruction bytes\n");
 	exit(1);
@@ -245,6 +286,7 @@ struct option opts[] = {
 	{ "pt", required_argument, NULL, 'p' },
 	{ "freq", required_argument, NULL, 'f' },
 	{ "insn", no_argument, NULL, 'i' },
+	{ "sideband", required_argument, NULL, 's' },
 	{ }
 };
 
@@ -252,7 +294,7 @@ int main(int ac, char **av)
 {
 	struct pt_insn_decoder *decoder = NULL;
 	int c;
-	while ((c = getopt_long(ac, av, "e:p:f:i", opts, NULL)) != -1) {
+	while ((c = getopt_long(ac, av, "e:p:f:is:", opts, NULL)) != -1) {
 		char *end;
 		switch (c) {
 		case 'e':
@@ -260,7 +302,10 @@ int main(int ac, char **av)
 				fprintf(stderr, "Specify PT file before ELF files\n");
 				usage();
 			}
-			read_elf(optarg, decoder, 0);
+			if (read_elf(optarg, decoder, 0, 0) < 0) {
+				fprintf(stderr, "Cannot load elf file %s: %s\n",
+						optarg, strerror(errno));
+			}
 			break;
 		case 'p':
 			if (decoder) {
@@ -276,6 +321,13 @@ int main(int ac, char **av)
 			break;
 		case 'i':
 			dump_insn = 1;
+			break;
+		case 's':
+			if (!decoder) {
+				fprintf(stderr, "Specify PT file before sideband\n");
+				usage();
+			}
+			load_sideband(optarg, decoder);
 			break;
 		default:
 			usage();

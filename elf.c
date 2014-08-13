@@ -35,7 +35,8 @@ void read_symtab(Elf *elf)
 	}
 }
 
-void add_progbits(Elf *elf, struct pt_insn_decoder *decoder, char *fn, uint64_t base)
+void add_progbits(Elf *elf, struct pt_insn_decoder *decoder, char *fn, uint64_t base,
+		 uint64_t cr3)
 {
 	int64_t offset = 0;
 	size_t numphdr;
@@ -58,8 +59,8 @@ void add_progbits(Elf *elf, struct pt_insn_decoder *decoder, char *fn, uint64_t 
 
 		if (phdr.p_type == PT_LOAD) {
 			int err;
-			err = pt_insn_add_file(decoder, fn, phdr.p_offset, phdr.p_filesz,
-					       phdr.p_vaddr + offset);
+			err = pt_insn_add_file_cr3(decoder, fn, phdr.p_offset, phdr.p_filesz,
+					       phdr.p_vaddr + offset, cr3);
 			if (err < 0) {
 				fprintf(stderr, "%s: %s\n", fn, pt_errstr(pt_errcode(err)));
 				return;
@@ -68,7 +69,7 @@ void add_progbits(Elf *elf, struct pt_insn_decoder *decoder, char *fn, uint64_t 
 	}
 }
 
-int read_elf(char *fn, struct pt_insn_decoder *decoder, uint64_t base)
+int read_elf(char *fn, struct pt_insn_decoder *decoder, uint64_t base, uint64_t cr3)
 {
 	int ret = -1;
 
@@ -86,7 +87,7 @@ int read_elf(char *fn, struct pt_insn_decoder *decoder, uint64_t base)
 	}
 	ret = 0;
 	read_symtab(elf);
-	add_progbits(elf, decoder, fn, base);
+	add_progbits(elf, decoder, fn, base, cr3);
 out_elf:
 	elf_end(elf);
 out_fd:
