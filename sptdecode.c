@@ -106,9 +106,7 @@ static void print_time_indent(void)
 	printf("%*s", 24, "");
 }
 
-static void print_time(struct pt_insn_decoder *decoder, uint64_t ts,
-			uint64_t *last_ts,
-			uint64_t *first_ts)
+static void print_time(uint64_t ts, uint64_t *last_ts,uint64_t *first_ts)
 {
 	char buf[30];
 	if (!*first_ts)
@@ -133,11 +131,67 @@ static void print_insn(struct pt_insn *insn)
 	printf("\n");
 }
 
+struct local_pstate {
+	int indent;
+	int prev_spec;
+};
+
+struct global_pstate {
+	uint64_t last_ts;
+	uint64_t first_ts;
+};
+
+static void print_output(struct sinsn *insnbuf, int sic,
+			 struct local_pstate *ps,
+			 struct global_pstate *gps)
+{
+	int i;
+	for (i = 0; i < sic; i++) {
+		struct sinsn *si = &insnbuf[i];
+
+		if (si->speculative || si->aborted || si->committed)
+			print_tsx(si, &ps->prev_spec, &ps->indent);
+		if (si->disabled || si->enabled || si->resumed ||
+		    si->interrupted || si->resynced)
+			print_event(si);
+		/* Always print if we have a time (for now) */
+		if (si->ts) {
+			print_time(si->ts, &gps->last_ts, &gps->first_ts);
+			if (si->iclass != ptic_call && si->iclass != ptic_far_call) {
+				printf("[+%4u] %*s", si->insn_delta, ps->indent, "");
+				print_ip(si->ip);
+				putchar('\n');
+			}
+		}
+		switch (si->iclass) {
+		case ptic_far_call:
+		case ptic_call: {
+			if (!si->ts)
+				print_time_indent();
+			printf("[+%4u] %*s", si->insn_delta, ps->indent, "");
+			print_ip(si->ip);
+			printf(" -> ");
+			print_ip(si->dst);
+			putchar('\n');
+			ps->indent += 4;
+			break;
+		}
+		case ptic_far_return:
+		case ptic_return:
+			ps->indent -= 4;
+			if (ps->indent < 0)
+				ps->indent = 0;
+			break;
+		default:
+			break;
+		}
+	}
+}
+
 static int decode(struct pt_insn_decoder *decoder)
 {
-	uint64_t first_ts = 0;
+	struct global_pstate gps = { .first_ts = 0 };
 	uint64_t last_ts = 0;
-	uint64_t last_ts_print = 0;
 
 	for (;;) {
 		uint64_t pos;
@@ -148,11 +202,11 @@ static int decode(struct pt_insn_decoder *decoder)
 			break;
 		}
 
+		struct local_pstate ps = { .indent = 0 };
+
 		unsigned long insncnt = 0;
 		struct sinsn insnbuf[NINSN];
 		uint64_t errip = 0;
-		int indent = 0;
-		int prev_spec = 0;
 		do {
 			int sic = 0;
 			while (!err && sic < NINSN - 1) {
@@ -201,48 +255,7 @@ static int decode(struct pt_insn_decoder *decoder)
 					last_ts = si->ts;
 			}
 
-			int i;
-			for (i = 0; i < sic; i++) {
-				struct sinsn *si = &insnbuf[i];
-
-				if (si->speculative || si->aborted || si->committed)
-					print_tsx(si, &prev_spec, &indent);
-				if (si->disabled || si->enabled || si->resumed ||
-				    si->interrupted || si->resynced)
-					print_event(si);
-				/* Always print if we have a time (for now) */
-				if (si->ts) {
-					printf("ts %lx last_ts %lx\n", si->ts, last_ts_print);
-					print_time(decoder, si->ts, &last_ts_print, &first_ts);
-					if (si->iclass != ptic_call && si->iclass != ptic_far_call) {
-						printf("[+%4u] %*s", si->insn_delta, indent, "");
-						print_ip(si->ip);
-						putchar('\n');
-					}
-				}
-				switch (si->iclass) {
-				case ptic_far_call:
-				case ptic_call: {
-					if (!si->ts)
-						print_time_indent();
-					printf("[+%4u] %*s", si->insn_delta, indent, "");
-					print_ip(si->ip);
-					printf(" -> ");
-					print_ip(si->dst);
-					putchar('\n');
-					indent += 4;
-					break;
-				}
-				case ptic_far_return:
-				case ptic_return:
-					indent -= 4;
-					if (indent < 0)
-						indent = 0;
-					break;
-				default:
-					break;
-				}
-			}
+			print_output(insnbuf, sic, &ps, &gps);
 		} while (err == 0);
 		if (err == -pte_eos)
 			break;
