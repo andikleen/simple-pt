@@ -380,7 +380,7 @@ struct pt_insn_decoder *init_decoder(char *fn)
 }
 
 /* Sideband format:
-timestamp cr3 load-address path-to-binary
+timestamp cr3 load-address off-in-file path-to-binary
  */
 static void load_sideband(char *fn, struct pt_insn_decoder *decoder)
 {
@@ -393,10 +393,10 @@ static void load_sideband(char *fn, struct pt_insn_decoder *decoder)
 	size_t linelen = 0;
 	int lineno = 1;
 	while (getline(&line, &linelen, f) > 0) {
-		uint64_t ts, cr3, addr;
+		uint64_t ts, cr3, addr, off;
 		int n;
 
-		if (sscanf(line, "%lx %lx %lx %n", &ts, &cr3, &addr, &n) != 3) {
+		if (sscanf(line, "%lx %lx %lx %lx %n", &ts, &cr3, &addr, &off, &n) != 4) {
 			fprintf(stderr, "%s:%d: Parse error\n", fn, lineno);
 			exit(1);
 		}
@@ -410,6 +410,8 @@ static void load_sideband(char *fn, struct pt_insn_decoder *decoder)
 			while (--p >= line + n && isspace(*p))
 				*p = 0;
 		}
+		if (off != 0)
+			fprintf(stderr, "FIXME: mmap %s has non zero offset %lx\n", fn, off);
 		if (read_elf(line + n, decoder, addr, cr3)) {
 			fprintf(stderr, "Cannot read %s: %s\n", line + n, strerror(errno));
 		}
