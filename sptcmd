@@ -89,6 +89,6 @@ echo 0 > $T/events/pttp/process_cr3/enable
 echo 0 > $T/events/pttp/msr/enable
 if [ -z "$DONTDUMP" ] ; then
 	sptdump $PREFIX
-	grep -v '^#' $T/trace > ${PREFIX}.sideband
-	echo "Wrote sideband to ${PREFIX}.sideband"
+	grep -v '^#' $T/trace > ${PREFIX}.trace
+	echo "Wrote sideband to ${PREFIX}.trace"
 fi
