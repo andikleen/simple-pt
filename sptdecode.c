@@ -28,10 +28,12 @@ struct sinsn {
 	uint64_t ts;
 	enum pt_insn_class iclass;
 	unsigned insn_delta;
+	bool loop_start, loop_end;
+	unsigned iterations;
 	unsigned speculative : 1, aborted : 1, committed : 1, disabled : 1, enabled : 1, resumed : 1,
 		 interrupted : 1, resynced : 1;
 };
-#define NINSN 64
+#define NINSN 256
 
 static void transfer_events(struct sinsn *si, struct pt_insn *insn)
 {
@@ -111,6 +113,8 @@ static void print_time(uint64_t ts, uint64_t *last_ts,uint64_t *first_ts)
 	char buf[30];
 	if (!*first_ts)
 		*first_ts = ts;
+	if (!*last_ts)
+		*last_ts = ts;
 	double rtime = tsc_us(ts - *first_ts);
 	snprintf(buf, sizeof buf, "%-9.*f [+%-.*f]", tsc_freq ? 3 : 0,
 			rtime,
@@ -131,6 +135,56 @@ static void print_insn(struct pt_insn *insn)
 	printf("\n");
 }
 
+bool detect_loop = false;
+
+#define NO_ENTRY ((unsigned char)-1)
+#define CHASHBITS 8
+
+#define GOLDEN_RATIO_PRIME_64 0x9e37fffffffc0001UL
+
+static int remove_loops(struct sinsn *l, int nr)
+{
+	int i, j, off;
+	unsigned char chash[1 << CHASHBITS];
+	memset(chash, NO_ENTRY, sizeof(chash));
+
+	for (i = 0; i < nr; i++) {
+		int h = (l[i].ip * GOLDEN_RATIO_PRIME_64) >> (64 - CHASHBITS);
+
+		l[i].iterations = 0;
+		l[i].loop_start = l[i].loop_end = false;
+		if (chash[h] == NO_ENTRY) {
+			chash[h] = i;
+		} else if (l[chash[h]].ip == l[i].ip) {
+			bool is_loop = true;
+			unsigned insn = 0;
+
+			off = 0;
+			for (j = chash[h]; j < i && i + off < nr; j++, off++) {
+				if (l[j].ip != l[i + off].ip) {
+					is_loop = false;
+					break;
+				}
+				insn += l[j].insn_delta;
+			}
+			if (is_loop) {
+				j = chash[h];
+				l[j].loop_start = true;
+				if (l[j].iterations == 0)
+					l[j].iterations++;
+				l[j].iterations++;
+				printf("loop %lx-%lx %d-%d %u insn iter %d\n", l[j].ip, l[i].ip, j, i,
+						insn, l[j].iterations);
+				memmove(l + i, l + i + off,
+					(nr - (i + off)) * sizeof(struct sinsn));
+				l[i-1].loop_end = true;
+				nr -= off;
+			}
+		}
+	}
+	return nr;
+}
+
 struct local_pstate {
 	int indent;
 	int prev_spec;
@@ -140,6 +194,22 @@ struct global_pstate {
 	uint64_t last_ts;
 	uint64_t first_ts;
 };
+
+static void print_loop(struct sinsn *si, struct local_pstate *ps)
+{
+	if (si->loop_start) {
+		print_time_indent();
+		printf(" %5s  %*sloop start %u iterations ", "", ps->indent, "", si->iterations);
+		print_ip(si->ip);
+		putchar('\n');
+	}
+	if (si->loop_end) {
+		print_time_indent();
+		printf(" %5s  %*sloop end ", "", ps->indent, "");
+		print_ip(si->ip);
+		putchar('\n');
+	}
+}
 
 static void print_output(struct sinsn *insnbuf, int sic,
 			 struct local_pstate *ps,
@@ -154,6 +224,8 @@ static void print_output(struct sinsn *insnbuf, int sic,
 		if (si->disabled || si->enabled || si->resumed ||
 		    si->interrupted || si->resynced)
 			print_event(si);
+		if (detect_loop && (si->loop_start || si->loop_end))
+			print_loop(si, ps);
 		/* Always print if we have a time (for now) */
 		if (si->ts) {
 			print_time(si->ts, &gps->last_ts, &gps->first_ts);
@@ -190,7 +262,7 @@ static void print_output(struct sinsn *insnbuf, int sic,
 
 static int decode(struct pt_insn_decoder *decoder)
 {
-	struct global_pstate gps = { .first_ts = 0 };
+	struct global_pstate gps = { .first_ts = 0, .last_ts = 0 };
 	uint64_t last_ts = 0;
 
 	for (;;) {
@@ -202,7 +274,7 @@ static int decode(struct pt_insn_decoder *decoder)
 			break;
 		}
 
-		struct local_pstate ps = { .indent = 0 };
+		struct local_pstate ps = { .indent = 0, .prev_spec = 0 };
 
 		unsigned long insncnt = 0;
 		struct sinsn insnbuf[NINSN];
@@ -245,6 +317,7 @@ static int decode(struct pt_insn_decoder *decoder)
 					sic++;
 					transfer_events(si, &insn);
 				} else if (insn.iclass == ptic_return || insn.iclass == ptic_far_return || si->ts) {
+					si->ip = insn.ip;
 					si->insn_delta = insncnt;
 					insncnt = 0;
 					sic++;
@@ -255,6 +328,8 @@ static int decode(struct pt_insn_decoder *decoder)
 					last_ts = si->ts;
 			}
 
+			if (detect_loop)
+				sic = remove_loops(insnbuf, sic);
 			print_output(insnbuf, sic, &ps, &gps);
 		} while (err == 0);
 		if (err == -pte_eos)
@@ -352,6 +427,7 @@ void usage(void)
 	fprintf(stderr, "-s/--sideband log  Load side band log. Needs access to binaries\n");
 	fprintf(stderr, "--freq/-f freq   Use frequency to convert time stamps (Ghz)\n");
 	fprintf(stderr, "--insn/-i        dump instruction bytes\n");
+	fprintf(stderr, "--loop/-l	  detect loops\n");
 	exit(1);
 }
 
@@ -361,6 +437,7 @@ struct option opts[] = {
 	{ "freq", required_argument, NULL, 'f' },
 	{ "insn", no_argument, NULL, 'i' },
 	{ "sideband", required_argument, NULL, 's' },
+	{ "loop", no_argument, NULL, 'l' },
 	{ }
 };
 
@@ -368,7 +445,7 @@ int main(int ac, char **av)
 {
 	struct pt_insn_decoder *decoder = NULL;
 	int c;
-	while ((c = getopt_long(ac, av, "e:p:f:is:", opts, NULL)) != -1) {
+	while ((c = getopt_long(ac, av, "e:p:f:is:l", opts, NULL)) != -1) {
 		char *end;
 		switch (c) {
 		case 'e':
@@ -402,6 +479,9 @@ int main(int ac, char **av)
 				usage();
 			}
 			load_sideband(optarg, decoder);
+			break;
+		case 'l':
+			detect_loop = true;
 			break;
 		default:
 			usage();
