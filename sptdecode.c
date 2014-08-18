@@ -393,10 +393,11 @@ static void load_sideband(char *fn, struct pt_insn_decoder *decoder)
 	size_t linelen = 0;
 	int lineno = 1;
 	while (getline(&line, &linelen, f) > 0) {
-		uint64_t ts, cr3, addr, off;
+		uint64_t cr3, addr, off;
+		double ts;
 		int n;
 
-		if (sscanf(line, "%lx %lx %lx %lx %n", &ts, &cr3, &addr, &off, &n) != 4) {
+		if (sscanf(line, "%lf %lx %lx %lx %n", &ts, &cr3, &addr, &off, &n) != 4) {
 			fprintf(stderr, "%s:%d: Parse error\n", fn, lineno);
 			exit(1);
 		}
