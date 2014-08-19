@@ -89,6 +89,19 @@ echo 0 > $T/events/pttp/process_cr3/enable
 echo 0 > $T/events/pttp/msr/enable
 if [ -z "$DONTDUMP" ] ; then
 	sptdump $PREFIX
-	grep -v '^#' $T/trace > ${PREFIX}.trace
-	echo "Wrote sideband to ${PREFIX}.trace"
+
+	sptsideband.py $T/trace ${PREFIX}.trace ${PREFIX}.maps > ${PREFIX}.sideband
+
+	if [ -r /boot/vmlinux-$(uname -r) ] ; then
+		echo -e "0.0 0 0 0\t/boot/vmlinux-$(uname -r)" >> ${PREFIX}.sideband
+	elif [ -r /lib/modules/$(uname -r)/build/vmlinux ] ; then
+		echo -e "0.0 0 0 0\t/lib/modules/$(uname -r)/build/vmlinux" >> ${PREFIX}.sideband
+	fi
+
+	shopt -s globstar
+	while read name a b c d addr ; do
+		name=$(echo $name | sed s/_/?/g)
+		echo -e "0.0 0" $addr 0 "\t" /lib/modules/$(uname -r)/**/${name}.ko
+	done < /proc/modules >> ${PREFIX}.sideband
+	echo "Wrote sideband to ${PREFIX}.sideband"
 fi
