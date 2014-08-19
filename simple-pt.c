@@ -438,13 +438,12 @@ static int probe_mmap_region(struct kprobe *kp, struct pt_regs *regs)
 	unsigned long vm_flags = regs->cx;
 	unsigned long pgoff = regs->r8;
 #else
-	/* XXX test */
+	/* Assume regparm(3) */
 	struct file *file = (struct file *)regs->ax;
 	unsigned long addr = regs->dx;
 	unsigned long len = regs->cx;
-	/* XXX right offset */
-	unsigned long vm_flags = ((u32 *)(regs->sp))[0];
-	unsigned long pgoff = ((u32 *)(regs->sp))[1];
+	unsigned long vm_flags = ((u32 *)(regs->sp))[1];
+	unsigned long pgoff = ((u32 *)(regs->sp))[2];
 #endif
 	char *pathbuf, *path;
 
