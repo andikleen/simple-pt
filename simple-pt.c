@@ -246,7 +246,7 @@ static void do_enumerate_all(void)
 		if ((t->flags & PF_KTHREAD) || !t->mm)
 			continue;
 		/* Cannot get the file name here, leave that to user space */
-		trace_process_cr3(t->pid, (u64)(t->mm->pgd), t->comm);
+		trace_process_cr3(t->pid, __pa(t->mm->pgd), t->comm);
 	}
 	read_unlock(my_tasklist_lock);
 }
