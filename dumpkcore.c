@@ -135,28 +135,48 @@ Elf64_Sym *collect_syms(struct sym *syms, int numsyms, struct module *modules)
 	return stab;
 }
 
-struct module *newmod(Elf *elf, struct module **modules, char *name)
+struct module *modules = NULL;
+struct module *lastmod;
+
+struct module *newmod(Elf *elf, char *name, bool first)
 {
 	struct module *mod;
 	NEW(mod);
 	mod->name = strdup(name);
-	mod->next = *modules;
+	if (first) {
+		mod->next = modules;
+		modules = mod;
+	} else {
+		if (lastmod)
+			lastmod->next = mod;
+		if (!modules)
+			modules = mod;
+		lastmod = mod;
+	}
 #if 0
 	mod->scn = elf_newscn(elf);
 	if (!mod->scn)
 		elferr("elf_newscn");
 #endif
-	*modules = mod;
 	return mod;
 }
 
+struct module *findmod(char *name)
+{
+	struct module *mod;
+	for (mod = modules; mod; mod = mod->next)
+		if (!strcmp(name, mod->name))
+			return mod;
+	return NULL;
+}
+
 struct module *kernel_mod(Elf *elf, 
-			  struct module *mod, char *name, struct module **modules, struct sym *sym,
+			  struct module *mod, char *name, struct sym *sym,
 			  unsigned long long addr)
 {
 	if (!strcmp(name, "_stext")) {
 		assert(mod == NULL);
-		mod = newmod(elf, modules, "[kernel]");
+		mod = newmod(elf, "[kernel]", true);
 		mod->start = addr;
 	} else if (!strcmp(name, "_etext")) {
 		assert(mod != NULL);
@@ -168,6 +188,29 @@ struct module *kernel_mod(Elf *elf,
 	return mod;
 }
 
+void read_modules(Elf *elf)
+{
+	FILE *f = fopen("/proc/modules", "r");
+	if (!f)
+		err("/proc/modules");
+	char *line = NULL;
+	size_t linelen = 0;
+	while (getline(&line, &linelen, f) > 0) {
+		char mname[100];
+		unsigned long long addr;
+		int len;
+
+		// scsi_dh_hp_sw 12895 0 - Live 0xffffffffa005e000
+		if (sscanf(line, "%100s %d %*d %*s %*s %llx", mname, &len, &addr) != 3)
+			continue;
+		struct module *mod = newmod(elf, mname, false);
+		mod->start = addr;
+		mod->end = addr + len;
+	}
+	free(line);
+	fclose(f);
+}
+
 void read_symbols(Elf *elf)
 {
 	int stroff = 1;
@@ -175,7 +218,6 @@ void read_symbols(Elf *elf)
 	char *strtab = NULL;
 	struct sym *syms = NULL;
 	int numsyms = 0;
-	struct module *modules = NULL;
 
 	FILE *f = fopen("/proc/kallsyms", "r");
 	if (!f)
@@ -190,28 +232,32 @@ void read_symbols(Elf *elf)
 		char type;
 		char name[300], mname[100];
 		int n;
-		unsigned long long prevaddr = addr;
 
 		if ((n = sscanf(line, "%llx %1c %300s %100s", &addr, &type, name, mname)) < 3)
 			continue;
 
 		/* handle stext,etext, modules */
 		bool has_module = n > 3;
-		mod = kernel_mod(elf, mod, name, &modules, syms, addr);
+		mod = kernel_mod(elf, mod, name, syms, addr);
 
 		if (tolower(type) != 't')
 			continue;
 
 		if (has_module) {
 			if (!mod) { 
-				mod = newmod(elf, &modules, mname);
-				mod->start = addr;
+				mod = findmod(mname);
+				if (!mod) {
+					fprintf(stderr, "module %s not found\n", mname);
+					exit(1);
+				}
 			} else if (strcmp(mod->name, mname)) {
 				if (sym) 
 					sym->sym.st_size = addr - sym->sym.st_value;
-				mod->end = prevaddr;
-				mod = newmod(elf, &modules, mname);
-				mod->start = addr;
+				mod = findmod(mname);
+				if (!mod) {
+					fprintf(stderr, "module %s not found\n", mname);
+					exit(1);
+				}
 			}
 		}
 		if (!mod)
@@ -235,8 +281,6 @@ void read_symbols(Elf *elf)
 		numsyms++;
 		stroff += len + 1;
 	}
-	if (mod)
-		mod->end = addr + 4096; // XXX hack, get from kcore
 	free(line);
 	fclose(f);
 
@@ -244,9 +288,25 @@ void read_symbols(Elf *elf)
 	create_symtab(elf, stab, numsyms);
 	create_strtab(elf, strtab, stroff);
 
-	// finalize sections of all modules
+	// xxx finalize sections of all modules
+	// set sh_link
 	for (mod = modules; mod; mod = mod->next)
 		printf("%s %llx-%llx\n", mod->name, mod->start, mod->end);
+}
+
+void read_kcore(Elf *elf)
+{
+	int kfd = open("/proc/kcore", O_RDONLY);
+	if (kfd < 0)
+		err("/proc/kcore");
+	Elf *kelf = elf_begin(kfd, ELF_C_READ, NULL);
+	if (!kelf)
+		elferr("elf_begin ELF_C_READ");
+	// walk modules
+	// find phdr
+	// copy area to elf
+	elf_end(kelf);
+	close(kfd);
 }
 
 void usage(void)
@@ -281,7 +341,9 @@ int main(int ac, char **av)
 	ehdr->e_ehsize = 1;
 	elf_flagehdr (elf, ELF_C_SET, ELF_F_DIRTY);
 
+	read_modules(elf);
 	read_symbols(elf);
+	read_kcore(elf);
 
 	Elf64_Phdr *phdr = elf64_newphdr(elf, 1);
 	if (phdr == NULL)
