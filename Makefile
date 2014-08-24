@@ -2,8 +2,8 @@ USER_CFLAGS := -g -Wall
 LIBIPT_LIB := ../processor-trace/lib
 LIBIPT_INCLUDE := ../processor-trace/libipt/include
 
-USER_OBJS := sptdump.o map.o fastdecode.o sptdecode.o
-USER_EXE := sptdump fastdecode sptdecode
+USER_OBJS := sptdump.o map.o fastdecode.o sptdecode.o dumpkcore.o
+USER_EXE := sptdump fastdecode sptdecode dumpkcore
 
 KDIR = /lib/modules/`uname -r`/build
 obj-m := simple-pt.o
@@ -36,3 +36,5 @@ elf.o: CFLAGS += -I ${LIBIPT_INCLUDE}
 sptdecode: LDFLAGS := -L ${LIBIPT_LIB}
 sptdecode: LDLIBS := -lipt -lelf
 sptdecode: sptdecode.o map.o elf.o symtab.o
+
+dumpkcore: LDLIBS += -lelf
