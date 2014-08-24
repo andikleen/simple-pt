@@ -1,4 +1,8 @@
 /* Dump text in /proc/kcore with symbol table from kallsyms */
+/* Notebook
+   convert elf64 to gelf
+   generalize string add
+ */
 #define _GNU_SOURCE 1
 #include <gelf.h>
 #include <unistd.h>
@@ -17,32 +21,43 @@
 #define elferr(x) fprintf(stderr, x ": %s\n", elf_errmsg(-1)), exit(1)
 #define NEW(x) ((x) = calloc(sizeof(*(x)), 1))
 
-static void create_strtab(Elf *elf, char *strtab, int len)
+Elf_Data *new_bytedata(Elf_Scn *scn, char *buf, int len)
 {
-	Elf_Scn *scn = elf_newscn(elf);
-	if (!scn)
-		elferr("elf_newscn");
-
 	/* Add strtab elf section */
 	Elf_Data *data = elf_newdata(scn);
 	if (!data)
 		elferr("elf_newdata");
 	data->d_align = 1;
-	data->d_buf = strtab;
+	data->d_buf = buf;
 	data->d_off = 0;
 	data->d_size = len;
 	data->d_type = ELF_T_BYTE;
 	data->d_version = EV_CURRENT;
 
-	Elf64_Shdr *shdr = elf64_getshdr(scn);
+	return data;
+}
+
+static void create_strtab(Elf *elf, char *strtab, int len, int *strscn)
+{
+	Elf_Scn *scn = elf_newscn(elf);
+	if (!scn)
+		elferr("elf_newscn");
+
+	new_bytedata(scn, strtab, len);
+
+	GElf_Shdr shdr_mem;
+	GElf_Shdr *shdr = gelf_getshdr(scn, &shdr_mem);
 	if (!shdr)
 		elferr("elf64_getshdr");
 	shdr->sh_type = SHT_STRTAB;
 	shdr->sh_flags = SHF_STRINGS;
 	shdr->sh_entsize = 0;
+	gelf_update_shdr(scn, shdr);
 
-	Elf64_Ehdr *ehdr = elf64_getehdr(elf);	
-	ehdr->e_shstrndx = elf_ndxscn(scn);
+	GElf_Ehdr ehdr_mem;
+	GElf_Ehdr *ehdr = gelf_getehdr(elf, &ehdr_mem);
+	*strscn = ehdr->e_shstrndx = elf_ndxscn(scn);
+	gelf_update_ehdr(elf, ehdr);
 }
 
 static void create_symtab(Elf *elf, Elf64_Sym *symtab, int len)
@@ -131,12 +146,13 @@ Elf64_Sym *collect_syms(struct sym *syms, int numsyms, struct module *modules)
 		if (!stab[i].st_size)
 			stab[i].st_size = stab[i + 1].st_value - stab[i].st_value;
 	}
-	
+
 	return stab;
 }
 
 struct module *modules = NULL;
 struct module *lastmod;
+int num_modules;
 
 struct module *newmod(Elf *elf, char *name, bool first)
 {
@@ -153,11 +169,11 @@ struct module *newmod(Elf *elf, char *name, bool first)
 			modules = mod;
 		lastmod = mod;
 	}
-#if 0
 	mod->scn = elf_newscn(elf);
 	if (!mod->scn)
 		elferr("elf_newscn");
-#endif
+	printf("module %s section %lu\n", mod->name, elf_ndxscn(mod->scn));
+	num_modules++;
 	return mod;
 }
 
@@ -170,7 +186,7 @@ struct module *findmod(char *name)
 	return NULL;
 }
 
-struct module *kernel_mod(Elf *elf, 
+struct module *kernel_mod(Elf *elf,
 			  struct module *mod, char *name, struct sym *sym,
 			  unsigned long long addr)
 {
@@ -211,7 +227,7 @@ void read_modules(Elf *elf)
 	fclose(f);
 }
 
-void read_symbols(Elf *elf)
+void read_symbols(Elf *elf, int *strscn)
 {
 	int stroff = 1;
 	int strsize = 0;
@@ -233,7 +249,7 @@ void read_symbols(Elf *elf)
 		char name[300], mname[100];
 		int n;
 
-		if ((n = sscanf(line, "%llx %1c %300s %100s", &addr, &type, name, mname)) < 3)
+		if ((n = sscanf(line, "%llx %1c %300s [%100s", &addr, &type, name, mname)) < 3)
 			continue;
 
 		/* handle stext,etext, modules */
@@ -244,19 +260,22 @@ void read_symbols(Elf *elf)
 			continue;
 
 		if (has_module) {
-			if (!mod) { 
+			char *p = strchr(mname, ']');
+			if (p)
+				*p = 0;
+			if (!mod) {
 				mod = findmod(mname);
 				if (!mod) {
 					fprintf(stderr, "module %s not found\n", mname);
-					exit(1);
+					continue;
 				}
 			} else if (strcmp(mod->name, mname)) {
-				if (sym) 
+				if (sym)
 					sym->sym.st_size = addr - sym->sym.st_value;
 				mod = findmod(mname);
 				if (!mod) {
 					fprintf(stderr, "module %s not found\n", mname);
-					exit(1);
+					continue;
 				}
 			}
 		}
@@ -267,7 +286,7 @@ void read_symbols(Elf *elf)
 
 		/* Create string tab entry */
 		add_strtab(&strtab, &strsize, stroff, name, len);
-	
+
 		/* Create symbol table entry */
 		NEW(sym);
 		sym->sym.st_name = stroff;
@@ -286,15 +305,33 @@ void read_symbols(Elf *elf)
 
 	Elf64_Sym *stab = collect_syms(syms, numsyms, modules);
 	create_symtab(elf, stab, numsyms);
-	create_strtab(elf, strtab, stroff);
-
-	// xxx finalize sections of all modules
-	// set sh_link
-	for (mod = modules; mod; mod = mod->next)
-		printf("%s %llx-%llx\n", mod->name, mod->start, mod->end);
+	create_strtab(elf, strtab, stroff, strscn);
 }
 
-void read_kcore(Elf *elf)
+GElf_Phdr *find_phdr(GElf_Phdr *phdrs, int numphdr, unsigned long start, unsigned long end)
+{
+	int i;
+	for (i = 0; i < numphdr; i++) {
+		GElf_Phdr *phdr = &phdrs[i];
+		if (start >= phdr->p_vaddr && end < phdr->p_vaddr + phdr->p_filesz)
+			return phdr;
+	}
+	return NULL;
+}
+
+GElf_Phdr *read_phdr(Elf *kelf, size_t *numphdr)
+{
+	elf_getphdrnum(kelf, numphdr);
+	GElf_Phdr *phdr = calloc(*numphdr, sizeof(GElf_Phdr));
+	int i;
+	for (i = 0; i < *numphdr; i++) {
+		if (!gelf_getphdr(kelf, i, &phdr[i]))
+			elferr("gelf_getphdr");
+	}
+	return phdr;
+}
+
+void read_kcore(Elf *elf, int strscn)
 {
 	int kfd = open("/proc/kcore", O_RDONLY);
 	if (kfd < 0)
@@ -302,9 +339,67 @@ void read_kcore(Elf *elf)
 	Elf *kelf = elf_begin(kfd, ELF_C_READ, NULL);
 	if (!kelf)
 		elferr("elf_begin ELF_C_READ");
-	// walk modules
-	// find phdr
-	// copy area to elf
+
+	gelf_newphdr(elf, num_modules);
+
+	/* Read phdrs */
+	size_t knumphdr;
+	GElf_Phdr *kphdrs = read_phdr(kelf, &knumphdr);
+
+	GElf_Shdr shdrs[num_modules];
+
+	int i;
+	struct module *mod;
+	for (mod = modules, i = 0; mod; mod = mod->next, i++) {
+		/* find phdr. assume no overlap */
+		GElf_Phdr *ph = find_phdr(kphdrs, knumphdr, mod->start, mod->end);
+		if (!ph) {
+			fprintf(stderr, "Cannot find kcore mapping for %s %llx-%llx\n",
+					mod->name, mod->start, mod->end);
+			/* Would need to finalize sections anyways to continue */
+			exit(1);
+		}
+
+		/* Read core from kcore for a module */
+		long off = mod->start - ph->p_vaddr;
+		assert(off >= 0);
+		unsigned long len = mod->end - mod->start;
+		char *buf = malloc(len);
+		if (!len) {
+			fprintf(stderr, "Cannot allocate %ld bytes\n", len);
+			exit(ENOMEM);
+		}
+		if (pread(kfd, buf, len, ph->p_offset + off) != len) {
+			fprintf(stderr, "Cannot read %llx-%llx from kcore\n", mod->start, mod->end);
+			exit(1);
+		}
+
+		/* Set up section */
+		(void)new_bytedata(mod->scn, buf, len);
+		elf_flagscn(mod->scn, ELF_C_SET, ELF_F_DIRTY);
+		//free(buf);
+
+		GElf_Shdr *shdr = gelf_getshdr(mod->scn, &shdrs[i]);
+		if (!shdr)
+			elferr("gelf_getshdr");
+		shdr->sh_flags = SHF_EXECINSTR;
+		shdr->sh_link = strscn;
+		shdr->sh_type = SHT_PROGBITS;
+		gelf_update_shdr(mod->scn, shdr);
+	}
+	free(kphdrs);
+
+	/* Update PHDRs */
+	elf_update (elf, ELF_C_NULL);
+	GElf_Phdr tphdr[num_modules];
+	for (i = 0; i < num_modules; i++) {
+		GElf_Phdr *phdr = gelf_getphdr(elf, i, &tphdr[i]);
+		phdr->p_type = PT_PHDR;
+		phdr->p_offset = shdrs[i].sh_offset;
+		phdr->p_filesz = shdrs[i].sh_size;
+		gelf_update_phdr(elf, i, phdr);
+	}
+
 	elf_end(kelf);
 	close(kfd);
 }
@@ -312,6 +407,7 @@ void read_kcore(Elf *elf)
 void usage(void)
 {
 	fprintf(stderr, "Usage: dumpkcore file\n");
+	fprintf(stderr, "Create a core dump file of all kernel/module text with symbols\n");
 	exit(1);
 }
 
@@ -331,7 +427,9 @@ int main(int ac, char **av)
 	if (elf == NULL)
 		elferr("elf_begin");
 
-	Elf64_Ehdr *ehdr = elf64_newehdr(elf);
+	gelf_newehdr(elf, ELFCLASS64); /* XXX */
+	GElf_Ehdr ehdr_mem;
+	GElf_Ehdr *ehdr = gelf_getehdr(elf, &ehdr_mem);
 	if (ehdr == NULL)
 		elferr("gelf_newhdr");
 
@@ -339,21 +437,12 @@ int main(int ac, char **av)
 	ehdr->e_type = ET_CORE;
 	ehdr->e_version = 1;
 	ehdr->e_ehsize = 1;
-	elf_flagehdr (elf, ELF_C_SET, ELF_F_DIRTY);
+	gelf_update_ehdr(elf, ehdr);
 
+	int strscn;
 	read_modules(elf);
-	read_symbols(elf);
-	read_kcore(elf);
-
-	Elf64_Phdr *phdr = elf64_newphdr(elf, 1);
-	if (phdr == NULL)
-		elferr("gelf_newphdr");
-
-	phdr->p_type = PT_PHDR;
-	phdr->p_offset = ehdr->e_phoff;
-	phdr->p_filesz = elf64_fsize(ELF_T_PHDR, 1, EV_CURRENT);
-
-	elf_flagphdr(elf, ELF_C_SET, ELF_F_DIRTY);
+	read_symbols(elf, &strscn);
+	read_kcore(elf, strscn);
 
 	elf_update (elf, ELF_C_NULL);
 	if (elf_update(elf, ELF_C_WRITE) < 0)
