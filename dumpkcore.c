@@ -21,13 +21,13 @@
 #define elferr(x) fprintf(stderr, x ": %s\n", elf_errmsg(-1)), exit(1)
 #define NEW(x) ((x) = calloc(sizeof(*(x)), 1))
 
-Elf_Data *new_bytedata(Elf_Scn *scn, char *buf, int len)
+Elf_Data *new_bytedata(Elf_Scn *scn, char *buf, int len, int align)
 {
 	/* Add strtab elf section */
 	Elf_Data *data = elf_newdata(scn);
 	if (!data)
 		elferr("elf_newdata");
-	data->d_align = 1;
+	data->d_align = align;
 	data->d_buf = buf;
 	data->d_off = 0;
 	data->d_size = len;
@@ -43,14 +43,14 @@ static void create_strtab(Elf *elf, char *strtab, int len, int *strscn)
 	if (!scn)
 		elferr("elf_newscn");
 
-	new_bytedata(scn, strtab, len);
+	new_bytedata(scn, strtab, len, 1);
 
 	GElf_Shdr shdr_mem;
 	GElf_Shdr *shdr = gelf_getshdr(scn, &shdr_mem);
 	if (!shdr)
 		elferr("elf64_getshdr");
 	shdr->sh_type = SHT_STRTAB;
-	shdr->sh_flags = SHF_STRINGS;
+	shdr->sh_flags = SHF_STRINGS | SHF_ALLOC;
 	shdr->sh_entsize = 0;
 	gelf_update_shdr(scn, shdr);
 
@@ -60,7 +60,7 @@ static void create_strtab(Elf *elf, char *strtab, int len, int *strscn)
 	gelf_update_ehdr(elf, ehdr);
 }
 
-static void create_symtab(Elf *elf, Elf64_Sym *symtab, int len)
+static void create_symtab(Elf *elf, Elf64_Sym *symtab, int len, int strscn)
 {
 	Elf_Scn *scn = elf_newscn(elf);
 	if (!scn)
@@ -81,8 +81,9 @@ static void create_symtab(Elf *elf, Elf64_Sym *symtab, int len)
 	if (!shdr)
 		elferr("elf64_getshdr");
 	shdr->sh_type = SHT_SYMTAB;
-	shdr->sh_flags = 0; // XXX
+	shdr->sh_flags = SHF_ALLOC;
 	shdr->sh_entsize = sizeof(Elf64_Sym);
+	shdr->sh_link = strscn;
 }
 
 #define STRTABINIT (128 * 1024)
@@ -172,7 +173,6 @@ struct module *newmod(Elf *elf, char *name, bool first)
 	mod->scn = elf_newscn(elf);
 	if (!mod->scn)
 		elferr("elf_newscn");
-	printf("module %s section %lu\n", mod->name, elf_ndxscn(mod->scn));
 	num_modules++;
 	return mod;
 }
@@ -227,7 +227,7 @@ void read_modules(Elf *elf)
 	fclose(f);
 }
 
-void read_symbols(Elf *elf, int *strscn)
+void read_symbols(Elf *elf)
 {
 	int stroff = 1;
 	int strsize = 0;
@@ -304,8 +304,9 @@ void read_symbols(Elf *elf, int *strscn)
 	fclose(f);
 
 	Elf64_Sym *stab = collect_syms(syms, numsyms, modules);
-	create_symtab(elf, stab, numsyms);
-	create_strtab(elf, strtab, stroff, strscn);
+	int strscn;
+	create_strtab(elf, strtab, stroff, &strscn);
+	create_symtab(elf, stab, numsyms, strscn);
 }
 
 GElf_Phdr *find_phdr(GElf_Phdr *phdrs, int numphdr, unsigned long start, unsigned long end)
@@ -319,7 +320,7 @@ GElf_Phdr *find_phdr(GElf_Phdr *phdrs, int numphdr, unsigned long start, unsigne
 	return NULL;
 }
 
-GElf_Phdr *read_phdr(Elf *kelf, size_t *numphdr)
+GElf_Phdr *read_phdrs(Elf *kelf, size_t *numphdr)
 {
 	elf_getphdrnum(kelf, numphdr);
 	GElf_Phdr *phdr = calloc(*numphdr, sizeof(GElf_Phdr));
@@ -331,7 +332,9 @@ GElf_Phdr *read_phdr(Elf *kelf, size_t *numphdr)
 	return phdr;
 }
 
-void read_kcore(Elf *elf, int strscn)
+#define PAGESIZE 4096
+
+void read_kcore(Elf *elf)
 {
 	int kfd = open("/proc/kcore", O_RDONLY);
 	if (kfd < 0)
@@ -342,9 +345,9 @@ void read_kcore(Elf *elf, int strscn)
 
 	gelf_newphdr(elf, num_modules);
 
-	/* Read phdrs */
+	/* Read phdrs from kcore */
 	size_t knumphdr;
-	GElf_Phdr *kphdrs = read_phdr(kelf, &knumphdr);
+	GElf_Phdr *kphdrs = read_phdrs(kelf, &knumphdr);
 
 	GElf_Shdr shdrs[num_modules];
 
@@ -375,28 +378,33 @@ void read_kcore(Elf *elf, int strscn)
 		}
 
 		/* Set up section */
-		(void)new_bytedata(mod->scn, buf, len);
+		(void)new_bytedata(mod->scn, buf, len, PAGESIZE);
 		elf_flagscn(mod->scn, ELF_C_SET, ELF_F_DIRTY);
 		//free(buf);
 
 		GElf_Shdr *shdr = gelf_getshdr(mod->scn, &shdrs[i]);
 		if (!shdr)
 			elferr("gelf_getshdr");
-		shdr->sh_flags = SHF_EXECINSTR;
-		shdr->sh_link = strscn;
+		shdr->sh_flags = SHF_EXECINSTR|SHF_ALLOC;
 		shdr->sh_type = SHT_PROGBITS;
+		shdr->sh_addr = mod->start;
+		shdr->sh_size = mod->end - mod->start;
 		gelf_update_shdr(mod->scn, shdr);
 	}
 	free(kphdrs);
 
-	/* Update PHDRs */
+	/* Create PHDRs */
 	elf_update (elf, ELF_C_NULL);
-	GElf_Phdr tphdr[num_modules];
 	for (i = 0; i < num_modules; i++) {
-		GElf_Phdr *phdr = gelf_getphdr(elf, i, &tphdr[i]);
+		GElf_Phdr phdr_mem;
+		GElf_Phdr *phdr = gelf_getphdr(elf, i, &phdr_mem);
 		phdr->p_type = PT_PHDR;
 		phdr->p_offset = shdrs[i].sh_offset;
 		phdr->p_filesz = shdrs[i].sh_size;
+		phdr->p_vaddr = shdrs[i].sh_addr;
+		phdr->p_filesz = shdrs[i].sh_size;
+		phdr->p_flags = PF_R|PF_X;
+		phdr->p_memsz = shdrs[i].sh_size;
 		gelf_update_phdr(elf, i, phdr);
 	}
 
@@ -439,11 +447,11 @@ int main(int ac, char **av)
 	ehdr->e_ehsize = 1;
 	gelf_update_ehdr(elf, ehdr);
 
-	int strscn;
 	read_modules(elf);
-	read_symbols(elf, &strscn);
-	read_kcore(elf, strscn);
+	read_symbols(elf);
+	read_kcore(elf);
 
+	elf_flagelf (elf, ELF_C_SET, ELF_F_LAYOUT);
 	elf_update (elf, ELF_C_NULL);
 	if (elf_update(elf, ELF_C_WRITE) < 0)
 		elferr("elf_update");
