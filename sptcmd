@@ -18,15 +18,16 @@ sptcmd [options] cmd
 -d Always reload driver
 -N Don't dump data
 -o PREFIX Dump to PREFIX.cpu and PREFIX.sb (default ptout)
--e enumerate all processes in sideband
+-e enumerate all processes in sideband (default unless -c is set)
 EOU
 }
 
 unset COMM KERNEL TRACE USERMODE DISRETC DRIVER DONTDUMP PREFIX ENUMALL
+ENUMDFL=1
 
 while getopts "c:ktURdNo:e" opt ; do
 	case "$opt" in
-	c) COMM="$OPTARG" ;;
+	c) COMM="$OPTARG" ; ENUMDFL=0 ;;
 	k) KERNEL=1 ;;
 	t) TRACE=1 ;;
 	U) USERMODE=0 ;;
@@ -49,7 +50,7 @@ DISRETC=${DISRETC:-0}
 DRIVER=${DRIVER:-}
 DONTDUMP=${DONTDUMP:-}
 PREFIX=${PREFIX:-ptout}
-ENUMALL=${ENUMALL:-0}
+ENUMALL=${ENUMALL:-$ENUMDFL}
 
 PATH=$PATH:$(dirname $0)
 
