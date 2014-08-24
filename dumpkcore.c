@@ -1,7 +1,6 @@
 /* Dump text in /proc/kcore with symbol table from kallsyms */
 /* Notebook
    convert elf64 to gelf
-   generalize string add
  */
 #define _GNU_SOURCE 1
 #include <gelf.h>
@@ -88,22 +87,31 @@ static void create_symtab(Elf *elf, Elf64_Sym *symtab, int len, int strscn)
 
 #define STRTABINIT (128 * 1024)
 
-void add_strtab(char **strtab, int *strsize, int stroff, char *sym, int len)
+/* string table */
+int stroff = 1;
+int strsize = 0;
+char *strtab = NULL;
+
+int add_strtab(char *sym)
 {
-	if (stroff + len + 1 > *strsize) {
-		if (!*strsize)
-			*strsize = STRTABINIT;
+	int len = strlen(sym) + 1;
+	int soff = stroff;
+	if (stroff + len > strsize) {
+		if (!strsize)
+			strsize = STRTABINIT;
 		else
-			*strsize *= 2;
-		*strtab = realloc(*strtab, *strsize);
-		if (!*strtab) {
+			strsize *= 2;
+		strtab = realloc(strtab, strsize);
+		if (!strtab) {
 			fprintf(stderr, "Out of memory\n");
 			exit(ENOMEM);
 		}
-		if (*strsize == STRTABINIT)
-			**strtab = 0;
+		if (strsize == STRTABINIT)
+			*strtab = 0;
 	}
-	strcpy(*strtab + stroff, sym);
+	strcpy(strtab + stroff, sym);
+	stroff += len;
+	return soff;
 }
 
 #define MIN_ADDR 0x100000
@@ -229,21 +237,18 @@ void read_modules(Elf *elf)
 
 void read_symbols(Elf *elf)
 {
-	int stroff = 1;
-	int strsize = 0;
-	char *strtab = NULL;
 	struct sym *syms = NULL;
 	int numsyms = 0;
 
 	FILE *f = fopen("/proc/kallsyms", "r");
 	if (!f)
 		err("/proc/kallsyms");
-	char *line = NULL;
-	size_t linelen = 0;
 	struct module *mod = NULL;
 	unsigned long long addr = 0;
 	struct sym *sym = NULL;
 
+	char *line = NULL;
+	size_t linelen = 0;
 	while (getline(&line, &linelen, f) > 0) {
 		char type;
 		char name[300], mname[100];
@@ -282,14 +287,9 @@ void read_symbols(Elf *elf)
 		if (!mod)
 			continue;
 
-		int len = strlen(name);
-
-		/* Create string tab entry */
-		add_strtab(&strtab, &strsize, stroff, name, len);
-
 		/* Create symbol table entry */
 		NEW(sym);
-		sym->sym.st_name = stroff;
+		sym->sym.st_name = add_strtab(name);
 		sym->sym.st_value = addr;
 		sym->sym.st_info = ELF64_ST_INFO(type == 't' ? STB_LOCAL : STB_GLOBAL, STT_FUNC);
 		sym->sym.st_size = 0;
@@ -298,7 +298,6 @@ void read_symbols(Elf *elf)
 
 		syms = sym;
 		numsyms++;
-		stroff += len + 1;
 	}
 	free(line);
 	fclose(f);
