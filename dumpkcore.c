@@ -1,7 +1,4 @@
 /* Dump text in /proc/kcore with symbol table from kallsyms */
-/* Notebook
-   support 32bit
- */
 #define _GNU_SOURCE 1
 #include <gelf.h>
 #include <unistd.h>
@@ -351,15 +348,19 @@ GElf_Phdr *read_phdrs(Elf *kelf, size_t *numphdr)
 
 #define PAGESIZE 4096
 
-void read_kcore(Elf *elf, int strscn)
+Elf *open_kcore(int *kfd)
 {
-	int kfd = open("/proc/kcore", O_RDONLY);
-	if (kfd < 0)
+	*kfd = open("/proc/kcore", O_RDONLY);
+	if (*kfd < 0)
 		err("/proc/kcore");
-	Elf *kelf = elf_begin(kfd, ELF_C_READ, NULL);
+	Elf *kelf = elf_begin(*kfd, ELF_C_READ, NULL);
 	if (!kelf)
 		elferr("elf_begin ELF_C_READ");
+	return kelf;
+}
 
+void read_kcore(Elf *elf, Elf *kelf, int kfd, int strscn)
+{
 	gelf_newphdr(elf, num_modules);
 
 	/* Read phdrs from kcore */
@@ -410,8 +411,8 @@ void read_kcore(Elf *elf, int strscn)
 		char *name;
 		asprintf(&name, ".text.%s", mod->name);
 		shdr->sh_name = add_strtab(name);
-		shdr->sh_link = strscn;
 		free(name);
+		shdr->sh_link = strscn;
 		gelf_update_shdr(mod->scn, shdr);
 	}
 	free(kphdrs);
@@ -430,9 +431,21 @@ void read_kcore(Elf *elf, int strscn)
 		phdr->p_memsz = shdrs[i].sh_size;
 		gelf_update_phdr(elf, i, phdr);
 	}
+}
 
-	elf_end(kelf);
-	close(kfd);
+void setup_ehdr(Elf *elf, int class, int machine)
+{
+	gelf_newehdr(elf, class);
+	GElf_Ehdr ehdr_mem;
+	GElf_Ehdr *ehdr = gelf_getehdr(elf, &ehdr_mem);
+	if (ehdr == NULL)
+		elferr("gelf_newhdr");
+
+	ehdr->e_machine = machine;
+	ehdr->e_type = ET_CORE;
+	ehdr->e_version = 1;
+	ehdr->e_ehsize = 1;
+	gelf_update_ehdr(elf, ehdr);
 }
 
 void usage(void)
@@ -454,25 +467,22 @@ int main(int ac, char **av)
 	}
 	elf_version(EV_CURRENT);
 
+	int kfd;
+	Elf *kelf = open_kcore(&kfd);
+
+	GElf_Ehdr kehdr_mem;
+	GElf_Ehdr *kehdr = gelf_getehdr(kelf, &kehdr_mem);
+
 	Elf *elf = elf_begin(fd, ELF_C_WRITE, NULL);
 	if (elf == NULL)
 		elferr("elf_begin");
 
-	gelf_newehdr(elf, ELFCLASS64); /* XXX */
-	GElf_Ehdr ehdr_mem;
-	GElf_Ehdr *ehdr = gelf_getehdr(elf, &ehdr_mem);
-	if (ehdr == NULL)
-		elferr("gelf_newhdr");
-
-	ehdr->e_machine = EM_X86_64;
-	ehdr->e_type = ET_CORE;
-	ehdr->e_version = 1;
-	ehdr->e_ehsize = 1;
-	gelf_update_ehdr(elf, ehdr);
+	setup_ehdr(elf, kehdr->e_ident[EI_CLASS], kehdr->e_machine);
 
 	Elf_Scn *strscn = elf_newscn(elf);
 	if (!strscn)
 		elferr("elf_newscn");
+	/* Set up preliminary dummy so that elf_update does not fail. */
 	Elf_Data *data = elf_newdata(strscn);
 	data->d_version = EV_CURRENT;
 	data->d_align = 8;
@@ -480,7 +490,7 @@ int main(int ac, char **av)
 
 	read_modules(elf);
 	read_symbols(elf);
-	read_kcore(elf, elf_ndxscn(strscn));
+	read_kcore(elf, kelf, kfd, elf_ndxscn(strscn));
 	GElf_Sym *stab = collect_syms(syms, numsyms, modules);
 	create_strtab(elf, strscn);
 	create_symtab(elf, stab, numsyms, elf_ndxscn(strscn));
@@ -493,5 +503,7 @@ int main(int ac, char **av)
 	if (elf_end(elf) < 0)
 		elferr("elf_end");
 	close(fd);
+	elf_end(kelf);
+	close(kfd);
 	return 0;
 }
