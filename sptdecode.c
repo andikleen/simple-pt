@@ -18,6 +18,7 @@
 #include "map.h"
 #include "elf.h"
 #include "symtab.h"
+#include "freq.h"
 
 /* Includes branches and anything with a time. Always
  * flushed on any resyncs.
@@ -380,7 +381,7 @@ struct pt_insn_decoder *init_decoder(char *fn)
 }
 
 /* Sideband format:
-timestamp cr3 load-address off-in-file path-to-binary
+timestamp cr3 load-address off-in-file path-to-binary[:codebin]
  */
 static void load_sideband(char *fn, struct pt_insn_decoder *decoder)
 {
@@ -426,9 +427,10 @@ void usage(void)
 {
 	fprintf(stderr, "sptdecode --pt ptfile --elf elffile ...\n");
 	fprintf(stderr, "-p/--pt ptfile   PT input file. Required and must before --elf/-s\n");
-	fprintf(stderr, "-e/--elf binary  ELF input PT files. Can be specified multiple times.\n");
+	fprintf(stderr, "-e/--elf binary[:codebin]  ELF input PT files. Can be specified multiple times.\n");
+	fprintf(stderr, "                   When codebin is specified read code from codebin\n");
 	fprintf(stderr, "-s/--sideband log  Load side band log. Needs access to binaries\n");
-	fprintf(stderr, "--freq/-f freq   Use frequency to convert time stamps (Ghz)\n");
+	fprintf(stderr, "--freq/-f freq   Use frequency to convert time stamps (Ghz). cur for current system.\n");
 	fprintf(stderr, "--insn/-i        dump instruction bytes\n");
 	fprintf(stderr, "--loop/-l	  detect loops\n");
 	exit(1);
@@ -469,9 +471,17 @@ int main(int ac, char **av)
 			decoder = init_decoder(optarg);
 			break;
 		case 'f':
-			tsc_freq = strtod(optarg, &end);
-			if (end == optarg)
-				usage();
+			if (!strcmp(optarg, "cur")) {
+				tsc_freq = get_freq();
+				if (!tsc_freq) {
+					fprintf(stderr, "Cannot get frequency\n");
+					exit(1);
+				}
+			} else {
+				tsc_freq = strtod(optarg, &end);
+				if (end == optarg)
+					usage();
+			}
 			break;
 		case 'i':
 			dump_insn = 1;

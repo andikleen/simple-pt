@@ -91,12 +91,14 @@ echo 0 > $T/events/pttp/msr/enable
 if [ -z "$DONTDUMP" ] ; then
 	sptdump $PREFIX
 
-	sptsideband.py $T/trace ${PREFIX}.trace ${PREFIX}.maps > ${PREFIX}.sideband
+	sptsideband.py $T/trace ${PREFIX}.maps > ${PREFIX}.sideband
 
 	if [ -r /boot/vmlinux-$(uname -r) ] ; then
 		echo -e "0.0 0 0 0\t/boot/vmlinux-$(uname -r)" >> ${PREFIX}.sideband
 	elif [ -r /lib/modules/$(uname -r)/build/vmlinux ] ; then
 		echo -e "0.0 0 0 0\t/lib/modules/$(uname -r)/build/vmlinux" >> ${PREFIX}.sideband
+	else
+		echo "vmlinux not found"
 	fi
 
 	shopt -s globstar

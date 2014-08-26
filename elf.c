@@ -42,7 +42,7 @@ void add_progbits(Elf *elf, struct pt_insn_decoder *decoder, char *fn, uint64_t 
 	size_t numphdr;
 	int i;
 
-	elf_getphdrnum(elf, &numphdr);	
+	elf_getphdrnum(elf, &numphdr);
 	if (base) {
 		uint64_t minaddr = UINT64_MAX;
 		for (i = 0; i < numphdr; i++) {
@@ -69,28 +69,51 @@ void add_progbits(Elf *elf, struct pt_insn_decoder *decoder, char *fn, uint64_t 
 	}
 }
 
+static Elf *elf_open(char *fn, int *fd)
+{
+	*fd = open(fn, O_RDONLY);
+	if (*fd < 0) {
+		perror(fn);
+		return NULL;
+	}
+	Elf *elf = elf_begin(*fd, ELF_C_READ, NULL);
+	if (!elf) {
+		fprintf(stderr, "elf_begin failed for %s: %s\n",
+				fn, elf_errmsg(-1));
+		close(*fd);
+	}
+	return elf;
+}
+
+static void elf_close(Elf *elf, int fd)
+{
+	elf_end(elf);
+	close(fd);
+}
+
 int read_elf(char *fn, struct pt_insn_decoder *decoder, uint64_t base, uint64_t cr3)
 {
-	int ret = -1;
-
 	elf_version(EV_CURRENT);
-	int fd = open(fn, O_RDONLY);
-	if (fd < 0) {
-		perror(fn);
-		return -1;
-	}
 
-	Elf *elf = elf_begin(fd, ELF_C_READ, NULL);
-	if (elf == NULL) {
-		fprintf(stderr, "elf_begin failed\n");
-		goto out_fd;
-	}
-	ret = 0;
+	char *p = strchr(fn, ':');
+	if (p) {
+		*p = 0;
+		p++;
+	} else
+		p = NULL;
+
+	int fd;
+	Elf *elf = elf_open(fn, &fd);
+	if (elf == NULL)
+		return -1;
 	read_symtab(elf);
+	if (p) {
+		elf_close(elf, fd);
+		elf = elf_open(p, &fd);
+		if (!elf)
+			return -1;
+	}
 	add_progbits(elf, decoder, fn, base, cr3);
-out_elf:
-	elf_end(elf);
-out_fd:
-	close(fd);
-	return ret;
+	elf_close(elf, fd);
+	return 0;
 }

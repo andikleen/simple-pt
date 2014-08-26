@@ -422,7 +422,7 @@ void read_kcore(Elf *elf, Elf *kelf, int kfd, int strscn)
 	for (i = 0; i < num_modules; i++) {
 		GElf_Phdr phdr_mem;
 		GElf_Phdr *phdr = gelf_getphdr(elf, i, &phdr_mem);
-		phdr->p_type = PT_PHDR;
+		phdr->p_type = PT_LOAD;
 		phdr->p_offset = shdrs[i].sh_offset;
 		phdr->p_filesz = shdrs[i].sh_size;
 		phdr->p_vaddr = shdrs[i].sh_addr;
@@ -460,7 +460,7 @@ int main(int ac, char **av)
 	if (!av[1])
 		usage();
 
-	int fd = open(av[1], O_RDWR|O_CREAT|O_TRUNC, 0644);
+	int fd = open(av[1], O_RDWR|O_CREAT|O_TRUNC, 0600);
 	if (fd < 0) {
 		fprintf(stderr, "Cannot create %s: %s\n", av[1], strerror(errno));
 		exit(1);
