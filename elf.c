@@ -62,7 +62,8 @@ void add_progbits(Elf *elf, struct pt_insn_decoder *decoder, char *fn, uint64_t 
 			err = pt_insn_add_file_cr3(decoder, fn, phdr.p_offset, phdr.p_filesz,
 					       phdr.p_vaddr + offset, cr3);
 			if (err < 0) {
-				fprintf(stderr, "%s: %s\n", fn, pt_errstr(pt_errcode(err)));
+				fprintf(stderr, "reading prog code from %s: %s (%s)\n",
+						fn, pt_errstr(pt_errcode(err)), strerror(errno));
 				return;
 			}
 		}
@@ -100,7 +101,7 @@ int read_elf(char *fn, struct pt_insn_decoder *decoder, uint64_t base, uint64_t 
 		*p = 0;
 		p++;
 	} else
-		p = NULL;
+		p = fn;
 
 	int fd;
 	Elf *elf = elf_open(fn, &fd);
@@ -113,7 +114,7 @@ int read_elf(char *fn, struct pt_insn_decoder *decoder, uint64_t base, uint64_t 
 		if (!elf)
 			return -1;
 	}
-	add_progbits(elf, decoder, fn, base, cr3);
+	add_progbits(elf, decoder, p, base, cr3);
 	elf_close(elf, fd);
 	return 0;
 }
