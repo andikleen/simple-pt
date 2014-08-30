@@ -4,6 +4,7 @@
 #include <intel-pt.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
 #include "symtab.h"
 #include "elf.h"
 
