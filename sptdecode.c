@@ -1,10 +1,5 @@
 /* Decoder using libipt for simple-pt */
 
-/* Notebook:
-   Fast mode on packet level if no ELF file
-   Loop detector
-   Dwarf decoding
-   */
 #define _GNU_SOURCE 1
 #include <intel-pt.h>
 #include <stdio.h>
