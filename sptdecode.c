@@ -46,19 +46,27 @@ static void transfer_events(struct sinsn *si, struct pt_insn *insn)
 #undef T
 }
 
+static void print_ip(uint64_t ip);
+
+static void print_ev(char *name, struct sinsn *insn)
+{
+	printf("%s ", name);
+	print_ip(insn->ip);
+	putchar('\n');
+}
 
 static void print_event(struct sinsn *insn)
 {
 	if (insn->disabled)
-		printf("disabled\n");
+		print_ev("disabled", insn);
 	if (insn->enabled)
-		printf("enabled\n");
+		print_ev("enabled", insn);
 	if (insn->resumed)
-		printf("resumed\n");
+		print_ev("resumed", insn);
 	if (insn->interrupted)
-		printf("interrupted\n");
+		print_ev("interrupted", insn);
 	if (insn->resynced)
-		printf("resynced\n");
+		print_ev("resynced", insn);
 }
 
 static void print_tsx(struct sinsn *insn, int *prev_spec, int *indent)
@@ -263,6 +271,7 @@ static int decode(struct pt_insn_decoder *decoder)
 {
 	struct global_pstate gps = { .first_ts = 0, .last_ts = 0 };
 	uint64_t last_ts = 0;
+	struct local_pstate ps;
 
 	for (;;) {
 		uint64_t pos;
@@ -273,11 +282,12 @@ static int decode(struct pt_insn_decoder *decoder)
 			break;
 		}
 
-		struct local_pstate ps = { .indent = 0, .prev_spec = 0 };
+		memset(&ps, 0, sizeof(struct local_pstate));
 
 		unsigned long insncnt = 0;
 		struct sinsn insnbuf[NINSN];
 		uint64_t errip = 0;
+		uint32_t prev_ratio = 0;
 		do {
 			int sic = 0;
 			while (!err && sic < NINSN - 1) {
@@ -349,7 +359,7 @@ static int decode(struct pt_insn_decoder *decoder)
 
 static void print_header(void)
 {
-	printf("%-10s %-5s  %7s   %s\n",
+	printf("%-9s %-5s %13s   %s\n",
 		"TIME",
 		"DELTA",
 		"INSNs",
