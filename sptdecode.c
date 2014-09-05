@@ -26,6 +26,7 @@ struct sinsn {
 	unsigned insn_delta;
 	bool loop_start, loop_end;
 	unsigned iterations;
+	uint32_t ratio;
 	unsigned speculative : 1, aborted : 1, committed : 1, disabled : 1, enabled : 1, resumed : 1,
 		 interrupted : 1, resynced : 1;
 };
@@ -217,6 +218,8 @@ static void print_output(struct sinsn *insnbuf, int sic,
 
 		if (si->speculative || si->aborted || si->committed)
 			print_tsx(si, &ps->prev_spec, &ps->indent);
+		if (si->ratio)
+			printf("frequency change to %d\n", si->ratio);
 		if (si->disabled || si->enabled || si->resumed ||
 		    si->interrupted || si->resynced)
 			print_event(si);
@@ -291,6 +294,13 @@ static int decode(struct pt_insn_decoder *decoder)
 					print_insn(&insn);
 				insncnt++;
 				pt_insn_time(decoder, &si->ts);
+				uint32_t ratio;
+				si->ratio = 0;
+				pt_insn_ratio(decoder, &ratio);
+				if (ratio != prev_ratio) {
+					si->ratio = ratio;
+					prev_ratio = ratio;
+				}
 				if (si->ts && si->ts == last_ts)
 					si->ts = 0;
 				si->iclass = insn.iclass;
