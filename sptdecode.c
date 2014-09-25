@@ -227,7 +227,7 @@ static void print_output(struct sinsn *insnbuf, int sic,
 		if (si->speculative || si->aborted || si->committed)
 			print_tsx(si, &ps->prev_spec, &ps->indent);
 		if (si->ratio)
-			printf("frequency change to %d\n", si->ratio);
+			printf("frequency %d\n", si->ratio);
 		if (si->disabled || si->enabled || si->resumed ||
 		    si->interrupted || si->resynced)
 			print_event(si);
@@ -441,7 +441,7 @@ static void load_sideband(char *fn, struct pt_insn_decoder *decoder)
 void usage(void)
 {
 	fprintf(stderr, "sptdecode --pt ptfile --elf elffile ...\n");
-	fprintf(stderr, "-p/--pt ptfile   PT input file. Required and must before --elf/-s\n");
+	fprintf(stderr, "-p/--pt ptfile   PT input file. Required and must be before --elf/-s\n");
 	fprintf(stderr, "-e/--elf binary[:codebin]  ELF input PT files. Can be specified multiple times.\n");
 	fprintf(stderr, "                   When codebin is specified read code from codebin\n");
 	fprintf(stderr, "-s/--sideband log  Load side band log. Needs access to binaries\n");
