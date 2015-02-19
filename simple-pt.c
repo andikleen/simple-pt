@@ -171,7 +171,7 @@ static int start_pt(void)
 		pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val & ~TRACE_EN);
 
 	if (clear_on_start && !(val & TRACE_EN)) {
-		memset((void *)__get_cpu_var(pt_buffer_cpu), 0, PAGE_SIZE << pt_buffer_order);
+		memset((void *)__this_cpu_read(pt_buffer_cpu), 0, PAGE_SIZE << pt_buffer_order);
 		init_mask_ptrs();
 		pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
 	}
@@ -195,7 +195,7 @@ static int start_pt(void)
 		val |= DIS_RETC;
 	if (pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
 		return -1;
-	__get_cpu_var(pt_running) = true;
+	__this_cpu_write(pt_running, true);
 	return 0;
 }
 
@@ -212,17 +212,17 @@ static void stop_pt(void *arg)
 	u64 status;
 	int cpu = smp_processor_id();
 
-	if (!__get_cpu_var(pt_running))
+	if (!__this_cpu_read(pt_running))
 		return;
 	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, 0LL);
 	status = rtit_status();
 	if (status)
 		pr_info("cpu %d, rtit status %llx after stopping\n", cpu, status);
-	__get_cpu_var(pt_running) = false;
+	__this_cpu_write(pt_running, false);
 
 	pt_rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
-	__get_cpu_var(pt_offset) = offset >> 32;
-	__get_cpu_var(pt_running) = false;
+	__this_cpu_write(pt_offset, offset >> 32);
+	__this_cpu_write(pt_running, false);
 }
 
 static void restart(void)
@@ -273,7 +273,7 @@ static void simple_pt_cpu_init(void *arg)
 		pt_error = -ENOMEM;
 		return;
 	}
-	__get_cpu_var(pt_buffer_cpu) = pt_buffer;
+	__this_cpu_write(pt_buffer_cpu, pt_buffer);
 
 	if (!single_range) {
 		/* allocate topa */
@@ -283,7 +283,7 @@ static void simple_pt_cpu_init(void *arg)
 			pt_error = -ENOMEM;
 			goto out_pt_buffer;
 		}
-		__get_cpu_var(topa_cpu) = topa;
+		__this_cpu_write(topa_cpu, topa);
 
 		/* create circular single entry topa table */
 		topa[0] = (u64)__pa(pt_buffer) | (pt_buffer_order << TOPA_SIZE_SHIFT);
@@ -299,7 +299,7 @@ static void simple_pt_cpu_init(void *arg)
 
 out_pt_buffer:
 	free_pages(pt_buffer, pt_buffer_order);
-	__get_cpu_var(pt_buffer_cpu) = 0;
+	__this_cpu_write(pt_buffer_cpu, 0);
 }
 
 
