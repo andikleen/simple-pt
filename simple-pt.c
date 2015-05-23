@@ -592,6 +592,7 @@ static void simple_pt_exit(void)
 	compat_unregister_trace_sched_process_exec(probe_sched_process_exec, NULL);
 	unregister_kprobe(&mmap_kp);
 	atomic_notifier_chain_unregister(&panic_notifier_list, &panic_notifier);
+	unregister_cpu_notifier(&cpu_notifier);
 	pr_info("exited\n");
 }
 
