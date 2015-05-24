@@ -36,7 +36,7 @@ void read_symtab(Elf *elf)
 	}
 }
 
-void add_progbits(Elf *elf, struct pt_insn_decoder *decoder, char *fn, uint64_t base,
+void add_progbits(Elf *elf, struct pt_image *image, char *fn, uint64_t base,
 		 uint64_t cr3)
 {
 	int64_t offset = 0;
@@ -59,9 +59,13 @@ void add_progbits(Elf *elf, struct pt_insn_decoder *decoder, char *fn, uint64_t 
 		gelf_getphdr(elf, i, &phdr);
 
 		if (phdr.p_type == PT_LOAD) {
+			struct pt_asid asid;
 			int err;
-			err = pt_insn_add_file_cr3(decoder, fn, phdr.p_offset, phdr.p_filesz,
-					       phdr.p_vaddr + offset, cr3);
+
+			pt_asid_init(&asid);
+			asid.cr3 = cr3;
+			err = pt_image_add_file(image, fn, phdr.p_offset, phdr.p_filesz,
+					       &asid, phdr.p_vaddr + offset);
 			if (err < 0) {
 				fprintf(stderr, "reading prog code from %s: %s (%s)\n",
 						fn, pt_errstr(pt_errcode(err)), strerror(errno));
@@ -93,7 +97,7 @@ static void elf_close(Elf *elf, int fd)
 	close(fd);
 }
 
-int read_elf(char *fn, struct pt_insn_decoder *decoder, uint64_t base, uint64_t cr3)
+int read_elf(char *fn, struct pt_image *image, uint64_t base, uint64_t cr3)
 {
 	elf_version(EV_CURRENT);
 
@@ -115,7 +119,7 @@ int read_elf(char *fn, struct pt_insn_decoder *decoder, uint64_t base, uint64_t 
 		if (!elf)
 			return -1;
 	}
-	add_progbits(elf, decoder, p, base, cr3);
+	add_progbits(elf, image, p, base, cr3);
 	elf_close(elf, fd);
 	return 0;
 }

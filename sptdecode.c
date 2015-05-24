@@ -296,7 +296,7 @@ static int decode(struct pt_insn_decoder *decoder)
 				struct sinsn *si = &insnbuf[sic];
 
 				insn.ip = 0;
-				err = pt_insn_next(decoder, &insn);
+				err = pt_insn_next(decoder, &insn, sizeof(struct pt_insn));
 				if (err < 0) {
 					errip = insn.ip;
 					break;
@@ -307,7 +307,7 @@ static int decode(struct pt_insn_decoder *decoder)
 				pt_insn_time(decoder, &si->ts);
 				uint32_t ratio;
 				si->ratio = 0;
-				pt_insn_ratio(decoder, &ratio);
+				pt_insn_core_bus_ratio(decoder, &ratio);
 				if (ratio != prev_ratio) {
 					si->ratio = ratio;
 					prev_ratio = ratio;
@@ -317,7 +317,7 @@ static int decode(struct pt_insn_decoder *decoder)
 				si->iclass = insn.iclass;
 				if (insn.iclass == ptic_call || insn.iclass == ptic_far_call) {
 					si->ip = insn.ip;
-					err = pt_insn_next(decoder, &insn);
+					err = pt_insn_next(decoder, &insn, sizeof(struct pt_insn));
 					if (err < 0) {
 						si->dst = 0;
 						errip = insn.ip;
@@ -393,6 +393,7 @@ struct option opts[] = {
 int main(int ac, char **av)
 {
 	struct pt_insn_decoder *decoder = NULL;
+	struct pt_image *image = pt_image_alloc("simple-pt");
 	int c;
 	while ((c = getopt_long(ac, av, "e:p:f:is:l", opts, NULL)) != -1) {
 		char *end;
@@ -402,7 +403,7 @@ int main(int ac, char **av)
 				fprintf(stderr, "Specify PT file before ELF files\n");
 				usage();
 			}
-			if (read_elf(optarg, decoder, 0, 0) < 0) {
+			if (read_elf(optarg, image, 0, 0) < 0) {
 				fprintf(stderr, "Cannot load elf file %s: %s\n",
 						optarg, strerror(errno));
 			}
@@ -435,7 +436,7 @@ int main(int ac, char **av)
 				fprintf(stderr, "Specify PT file before sideband\n");
 				usage();
 			}
-			load_sideband(optarg, decoder);
+			load_sideband(optarg, image);
 			break;
 		case 'l':
 			detect_loop = true;
@@ -444,6 +445,8 @@ int main(int ac, char **av)
 			usage();
 		}
 	}
+	if (decoder)
+		pt_insn_set_image(decoder, image);
 	if (ac - optind != 0 || !decoder)
 		usage();
 	print_header();

@@ -10,15 +10,11 @@
 
 struct pt_insn_decoder *init_decoder(char *fn)
 {
-	struct pt_config config = {
-		.size = sizeof(struct pt_config)
-	};
+	struct pt_config config;
+	pt_config_init(&config);
 
-	if (pt_configure(&config) < 0) {
-		fprintf(stderr, "pt configuration failed\n");
-		return NULL;
-	}
 	/* XXX configure cpu */
+
 	size_t len;
 	unsigned char *map = mapfile(fn, &len);
 	if (!map) {
@@ -40,7 +36,7 @@ struct pt_insn_decoder *init_decoder(char *fn)
 /* Sideband format:
 timestamp cr3 load-address off-in-file path-to-binary[:codebin]
  */
-void load_sideband(char *fn, struct pt_insn_decoder *decoder)
+void load_sideband(char *fn, struct pt_image *image)
 {
 	FILE *f = fopen(fn, "r");
 	if (!f) {
@@ -71,7 +67,7 @@ void load_sideband(char *fn, struct pt_insn_decoder *decoder)
 		}
 		if (off != 0)
 			fprintf(stderr, "FIXME: mmap %s has non zero offset %lx\n", fn, off);
-		if (read_elf(line + n, decoder, addr, cr3)) {
+		if (read_elf(line + n, image, addr, cr3)) {
 			fprintf(stderr, "Cannot read %s: %s\n", line + n, strerror(errno));
 		}
 
