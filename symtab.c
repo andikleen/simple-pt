@@ -36,13 +36,14 @@
 
 struct symtab *symtabs;
 
-struct symtab *add_symtab(unsigned num)
+struct symtab *add_symtab(unsigned num, unsigned long cr3)
 {
 	struct symtab *st = malloc(sizeof(struct symtab));
 	if (!st)
 		exit(ENOMEM);
 	st->num = num;
 	st->next = symtabs;
+	st->cr3 = cr3;
 	st->syms = malloc(num * sizeof(struct sym));
 	if (!st->syms)
 		exit(ENOMEM);
@@ -61,11 +62,13 @@ int cmp_sym(const void *ap, const void *bp)
 	return a->val - b->val;
 }
 
-struct sym *findsym(unsigned long val)
+struct sym *findsym(unsigned long val, unsigned long cr3)
 {
 	struct symtab *st;
 	struct sym search = { .val = val }, *s;
 	for (st = symtabs; st; st = st->next) {
+		if (st->cr3 && cr3 != st->cr3)
+			continue;
 		s = bsearch(&search, st->syms,  st->num, sizeof(struct sym), cmp_sym);
 		if (s)
 			return s;

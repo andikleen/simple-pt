@@ -40,7 +40,7 @@ import sys
 
 ap = argparse.ArgumentParser(usage='convert spt sideband .trace and .maps files to .sideband for sptdecode')
 ap.add_argument('trace', help='trace file', type=argparse.FileType('r'))
-ap.add_argument('maps', nargs='?', help='trace file', type=argparse.FileType('r'))
+ap.add_argument('maps', nargs='?', help='maps file', type=argparse.FileType('r'))
 arguments = ap.parse_args()
 
 cr3s = dict()
@@ -53,7 +53,8 @@ for l in arguments.trace:
     ts = ts.replace(":", "")
     args = dict([x.replace(",", "").split('=') for x in f[5:]])
     if tp == "process_cr3:":
-        cr3s[int(args['pid'])] = args['cr3']
+	pid = int(args['pid'])
+        cr3s[pid] = args['cr3']
         continue
     if not args['fn'].startswith("/"):
         continue
@@ -75,6 +76,8 @@ if arguments.maps:
         ([0-9a-f]+):([0-9a-f]+) \s+ 
         (?P<inode>\d+) \s+ 
         (?P<fn>.*)""", l, re.X)
+	if int(m.group('pid')) not in cr3s.keys():
+	    continue
         if not m:
             print >>sys.stderr, "no match", l,
             continue

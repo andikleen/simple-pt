@@ -93,18 +93,18 @@ if [ -z "$DONTDUMP" ] ; then
 
 	sptsideband.py $T/trace ${PREFIX}.maps > ${PREFIX}.sideband
 
-	if [ -r /boot/vmlinux-$(uname -r) ] ; then
-		echo -e "0.0 0 0 0\t/boot/vmlinux-$(uname -r)" >> ${PREFIX}.sideband
-	elif [ -r /lib/modules/$(uname -r)/build/vmlinux ] ; then
-		echo -e "0.0 0 0 0\t/lib/modules/$(uname -r)/build/vmlinux" >> ${PREFIX}.sideband
-	else
-		echo "vmlinux not found"
-	fi
+	#if [ -r /boot/vmlinux-$(uname -r) ] ; then
+	#	echo -e "0.0 0 0 0\t/boot/vmlinux-$(uname -r)" >> ${PREFIX}.sideband
+	#elif [ -r /lib/modules/$(uname -r)/build/vmlinux ] ; then
+	#	echo -e "0.0 0 0 0\t/lib/modules/$(uname -r)/build/vmlinux" >> ${PREFIX}.sideband
+	#else
+	#	echo "vmlinux not found"
+	#fi
 
-	shopt -s globstar
-	while read name a b c d addr ; do
-		name=$(echo $name | sed s/_/?/g)
-		echo -e "0.0 0" $addr 0 "\t" /lib/modules/$(uname -r)/**/${name}.ko
-	done < /proc/modules >> ${PREFIX}.sideband
+	#shopt -s globstar
+	#while read name a b c d addr ; do
+	#	name=$(echo $name | sed s/_/?/g)
+	#	echo -e "0.0 0" $addr 0 "\t" /lib/modules/$(uname -r)/**/${name}.ko
+	#done < /proc/modules >> ${PREFIX}.sideband
 	echo "Wrote sideband to ${PREFIX}.sideband"
 fi

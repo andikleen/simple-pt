@@ -45,6 +45,7 @@
 #include "symtab.h"
 #include "freq.h"
 #include "dtools.h"
+#include "kernel.h"
 
 /* Includes branches and anything with a time. Always
  * flushed on any resyncs.
@@ -58,6 +59,7 @@ struct sinsn {
 	bool loop_start, loop_end;
 	unsigned iterations;
 	uint32_t ratio;
+	uint64_t cr3;
 	unsigned speculative : 1, aborted : 1, committed : 1, disabled : 1, enabled : 1, resumed : 1,
 		 interrupted : 1, resynced : 1;
 };
@@ -77,12 +79,12 @@ static void transfer_events(struct sinsn *si, struct pt_insn *insn)
 #undef T
 }
 
-static void print_ip(uint64_t ip);
+static void print_ip(uint64_t ip, uint64_t cr3);
 
 static void print_ev(char *name, struct sinsn *insn)
 {
 	printf("%s ", name);
-	print_ip(insn->ip);
+	print_ip(insn->ip, insn->cr3);
 	putchar('\n');
 }
 
@@ -119,9 +121,9 @@ static void print_tsx(struct sinsn *insn, int *prev_spec, int *indent)
 		*indent = 0;
 }
 
-static void print_ip(uint64_t ip)
+static void print_ip(uint64_t ip, unsigned long cr3)
 {
-	struct sym *sym = findsym(ip);
+	struct sym *sym = findsym(ip, cr3);
 	if (sym) {
 		printf("%s", sym->name);
 		if (ip - sym->val > 0)
@@ -236,13 +238,13 @@ static void print_loop(struct sinsn *si, struct local_pstate *ps)
 	if (si->loop_start) {
 		print_time_indent();
 		printf(" %5s  %*sloop start %u iterations ", "", ps->indent, "", si->iterations);
-		print_ip(si->ip);
+		print_ip(si->ip, si->cr3);
 		putchar('\n');
 	}
 	if (si->loop_end) {
 		print_time_indent();
 		printf(" %5s  %*sloop end ", "", ps->indent, "");
-		print_ip(si->ip);
+		print_ip(si->ip, si->cr3);
 		putchar('\n');
 	}
 }
@@ -269,7 +271,7 @@ static void print_output(struct sinsn *insnbuf, int sic,
 			print_time(si->ts, &gps->last_ts, &gps->first_ts);
 			if (si->iclass != ptic_call && si->iclass != ptic_far_call) {
 				printf("[+%4u] %*s", si->insn_delta, ps->indent, "");
-				print_ip(si->ip);
+				print_ip(si->ip, si->cr3);
 				putchar('\n');
 			}
 		}
@@ -279,9 +281,9 @@ static void print_output(struct sinsn *insnbuf, int sic,
 			if (!si->ts)
 				print_time_indent();
 			printf("[+%4u] %*s", si->insn_delta, ps->indent, "");
-			print_ip(si->ip);
+			print_ip(si->ip, si->cr3);
 			printf(" -> ");
-			print_ip(si->dst);
+			print_ip(si->dst, si->cr3);
 			putchar('\n');
 			ps->indent += 4;
 			break;
@@ -342,6 +344,7 @@ static int decode(struct pt_insn_decoder *decoder)
 					si->ratio = ratio;
 					prev_ratio = ratio;
 				}
+				pt_insn_get_cr3(decoder, &si->cr3);
 				if (si->ts && si->ts == last_ts)
 					si->ts = 0;
 				si->iclass = insn.iclass;
@@ -400,7 +403,7 @@ static void print_header(void)
 void usage(void)
 {
 	fprintf(stderr, "sptdecode --pt ptfile --elf elffile ...\n");
-	fprintf(stderr, "-p/--pt ptfile   PT input file. Required and must be before --elf/-s\n");
+	fprintf(stderr, "-p/--pt ptfile   PT input file. Required\n");
 	fprintf(stderr, "-e/--elf binary[:codebin]  ELF input PT files. Can be specified multiple times.\n");
 	fprintf(stderr, "                   When codebin is specified read code from codebin\n");
 	fprintf(stderr, "-s/--sideband log  Load side band log. Needs access to binaries\n");
@@ -429,16 +432,13 @@ int main(int ac, char **av)
 		char *end;
 		switch (c) {
 		case 'e':
-			if (!decoder) {
-				fprintf(stderr, "Specify PT file before ELF files\n");
-				usage();
-			}
 			if (read_elf(optarg, image, 0, 0) < 0) {
 				fprintf(stderr, "Cannot load elf file %s: %s\n",
 						optarg, strerror(errno));
 			}
 			break;
 		case 'p':
+			/* FIXME */
 			if (decoder) {
 				fprintf(stderr, "Only one PT file supported\n");
 				usage();
@@ -462,10 +462,6 @@ int main(int ac, char **av)
 			dump_insn = 1;
 			break;
 		case 's':
-			if (!decoder) {
-				fprintf(stderr, "Specify PT file before sideband\n");
-				usage();
-			}
 			load_sideband(optarg, image);
 			break;
 		case 'l':
@@ -475,8 +471,10 @@ int main(int ac, char **av)
 			usage();
 		}
 	}
-	if (decoder)
+	if (decoder) {
+	  	read_kernel(image);
 		pt_insn_set_image(decoder, image);
+	}
 	if (ac - optind != 0 || !decoder)
 		usage();
 	print_header();

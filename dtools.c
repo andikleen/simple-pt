@@ -101,7 +101,7 @@ void load_sideband(char *fn, struct pt_image *image)
 		if (read_elf(line + n, image, addr, cr3)) {
 			fprintf(stderr, "Cannot read %s: %s\n", line + n, strerror(errno));
 		}
-
+		lineno++;
 	}
 	free(line);
 	fclose(f);
