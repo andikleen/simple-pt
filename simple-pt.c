@@ -57,6 +57,7 @@
 #include <linux/kallsyms.h>
 #include <linux/kprobes.h>
 #include <linux/dcache.h>
+#include <linux/ctype.h>
 #include <linux/syscore_ops.h>
 #include <trace/events/sched.h>
 #include <asm/msr.h>
@@ -91,6 +92,10 @@
 #define TOPA_INT	BIT(2)
 #define TOPA_END	BIT(0)
 #define TOPA_SIZE_SHIFT 6
+#define MSR_IA32_ADDR0_START		0x00000580
+#define MSR_IA32_ADDR0_END		0x00000581
+#define MSR_IA32_ADDR1_START		0x00000582
+#define MSR_IA32_ADDR1_END		0x00000583
 
 static void restart(void);
 static int start = 0;
@@ -124,6 +129,35 @@ static struct kernel_param_ops enumerate_ops = {
 	.get = param_get_int,
 };
 
+static unsigned addr_range_num;
+
+static int addr_set(const char *val, const struct kernel_param *kp)
+{
+	int ret = -EIO;
+
+	if (addr_range_num == 0)
+		return -EINVAL;
+
+	if (!isxdigit(val[0])) {
+		unsigned long addr = kallsyms_lookup_name(val);
+		if (addr) {
+			*(unsigned long *)(kp->arg) = addr;
+			ret = 0;
+		}
+	} else {
+		ret = param_set_ulong(val, kp);
+	}
+	if (start)
+		restart();
+	return ret;
+}
+
+static struct kernel_param_ops addr_ops = {
+	.set = addr_set,
+	.get = param_get_ulong,
+};
+
+
 static DEFINE_PER_CPU(unsigned long, pt_buffer_cpu);
 static DEFINE_PER_CPU(u64 *, topa_cpu);
 static DEFINE_PER_CPU(bool, pt_running);
@@ -134,6 +168,7 @@ static bool has_cr3_match;
 static unsigned psb_freq_mask;
 static unsigned cyc_thresh_mask;
 static unsigned mtc_freq_mask;
+static unsigned addr_cfg_max;
 
 static int pt_buffer_order = 9;
 module_param(pt_buffer_order, int, 0444);
@@ -176,6 +211,24 @@ MODULE_PARM_DESC(mtc_freq, "Enable MTC packets at frequency 2^(n-1) (if supporte
 static int psb_freq = 0;
 module_param_cb(psb_freq, &resync_ops, &psb_freq, 0644);
 MODULE_PARM_DESC(mtc_freq, "Send PSB packets every 2K^n bytes (if supported)");
+static u64 addr0_start;
+module_param_cb(addr0_start, &addr_ops, &addr0_start, 0644);
+MODULE_PARM_DESC(addr0_start, "Virtual start address of address range 0. Hex or kernel symbol");
+static u64 addr0_end;
+module_param_cb(addr0_end, &addr_ops, &addr0_end, 0644);
+MODULE_PARM_DESC(addr0_end, "Virtual end address of address range 0. Hex or kernel symbol");
+static unsigned addr0_cfg;
+module_param_cb(addr0_cfg, &resync_ops, &addr0_cfg, 0644);
+MODULE_PARM_DESC(addr0_end, "Mode of address range 0: 0 = off, 1 = filter, 2 = trace-stop (if supported)");
+static u64 addr1_start;
+module_param_cb(addr1_start, &addr_ops, &addr1_start, 0644);
+MODULE_PARM_DESC(addr1_start, "Virtual start address of address range 1. Hex or kernel symbol");
+static u64 addr1_end;
+module_param_cb(addr1_end, &addr_ops, &addr1_end, 0644);
+MODULE_PARM_DESC(addr1_end, "Virtual end address of address range 1. Hex or kernel symbol");
+static unsigned addr1_cfg;
+module_param_cb(addr1_cfg, &resync_ops, &addr1_cfg, 0644);
+MODULE_PARM_DESC(addr1_end, "Mode of address range 1: 0 = off, 1 = filter, 2 = trace-stop (if supported)");
 
 static DEFINE_MUTEX(restart_mutex);
 
@@ -228,7 +281,7 @@ static int start_pt(void)
 		pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
 	}
 
-	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC | TO_PA | BRANCH_EN | CYC_EN |
+	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC | TO_PA | CYC_EN |
 		 MTC_EN | MTC_MASK | CYC_MASK | PSB_MASK | ADDR0_MASK | ADDR1_MASK);
 	val |= TRACE_EN | BRANCH_EN;
 	if (!single_range)
@@ -252,6 +305,17 @@ static int start_pt(void)
 		val |= (mtc_freq  << 14) | MTC_EN;
 	if (psb_freq && (1U << (psb_freq_mask-1)))
 		val |= (psb_freq - 1) << 24;
+	if (addr0_cfg && (addr0_cfg <= addr_cfg_max) && addr_range_num >= 1) {
+		val |= ((u64)addr0_cfg << 32);
+		pt_wrmsrl_safe(MSR_IA32_ADDR0_START, addr0_start);
+		pt_wrmsrl_safe(MSR_IA32_ADDR0_END, addr0_end);
+	}
+	if (addr1_cfg && (addr1_cfg <= addr_cfg_max) && addr_range_num >= 2) {
+		val |= ((u64)addr1_cfg << 32);
+		pt_wrmsrl_safe(MSR_IA32_ADDR1_START, addr1_start);
+		pt_wrmsrl_safe(MSR_IA32_ADDR1_END, addr1_end);
+	}
+
 	if (pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
 		return -1;
 	__this_cpu_write(pt_running, true);
@@ -619,6 +683,8 @@ static int simple_pt_init(void)
 		return -EIO;
 	}
 	has_cr3_match = !!(b & BIT(0));
+	if (b & BIT(2))
+		addr_cfg_max = 2;
 	a1 = b1 = c1 = d1 = 0;
 	if (a >= 1)
 		cpuid_count(0x07, 1, &a1, &b1, &c1, &d1);
@@ -626,6 +692,7 @@ static int simple_pt_init(void)
 		mtc_freq_mask = (a1 >> 16) & 0xffff;
 		cyc_thresh_mask = b1 & 0xffff;
 		psb_freq_mask = (b1 >> 16) & 0xffff;
+		addr_range_num = a1 & 0x3;
 	}
 
 	err = misc_register(&simple_pt_miscdev);
