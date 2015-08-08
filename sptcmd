@@ -17,7 +17,7 @@ sptcmd [options] cmd
 -R disable return compression
 -d Always reload driver
 -N Don't dump data
--o PREFIX Dump to PREFIX.cpu and PREFIX.sb (default ptout)
+-o PREFIX Dump to PREFIX.cpu and PREFIX.sideband (default ptout)
 -e enumerate all processes in sideband (default unless -c is set)
 EOU
 }
