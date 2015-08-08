@@ -1,4 +1,4 @@
-/* Minimal Linux PT driver. */
+/* Minimal Linux Intel Processor Trace driver. */
 
 /*
  * Copyright (c) 2015, Intel Corporation
