@@ -241,6 +241,9 @@ static unsigned addr_cfg_max;
 static int pt_buffer_order = 9;
 module_param(pt_buffer_order, int, 0444);
 MODULE_PARM_DESC(pt_buffer_order, "Order of PT buffer size per CPU (2^n pages)");
+static int pt_num_buffers = 1;
+module_param(pt_num_buffers, int, 0444);
+MODULE_PARM_DESC(pt_num_buffers, "Number of PT buffers per CPU (if supported)");
 module_param_cb(start, &resync_ops, &start, 0644);
 MODULE_PARM_DESC(start, "Set to 1 to start trace, or 0 to stop");
 static int user = 1;
@@ -515,6 +518,8 @@ static void simple_pt_cpu_init(void *arg)
 		/* allocate topa */
 		topa = __this_cpu_read(topa_cpu);
 		if (!topa) {
+			int n;
+
 			topa = (u64 *)__get_free_page(GFP_KERNEL|__GFP_ZERO);
 			if (!topa) {
 				pr_err("cpu %d, Cannot allocate topa page\n", cpu);
@@ -524,8 +529,21 @@ static void simple_pt_cpu_init(void *arg)
 			__this_cpu_write(topa_cpu, topa);
 
 			/* create circular single entry topa table */
-			topa[0] = (u64)__pa(pt_buffer) | (pt_buffer_order << TOPA_SIZE_SHIFT);
-			topa[1] = (u64)__pa(topa) | TOPA_END; /* circular buffer */
+			n = 0;
+			topa[n++] = (u64)__pa(pt_buffer) |
+				(pt_buffer_order << TOPA_SIZE_SHIFT);
+			for (; n < pt_num_buffers; n++) {
+				void *buf = (void *)__get_free_pages(
+					GFP_KERNEL|__GFP_NOWARN|__GFP_ZERO,
+					pt_buffer_order);
+				if (!buf) {
+					pr_warn("Cannot allocate %d'th PT buffer\n", n);
+					break;
+				}
+				topa[n] = __pa(buf) |
+					(pt_buffer_order << TOPA_SIZE_SHIFT);
+			}
+			topa[n] = (u64)__pa(topa) | TOPA_END; /* circular buffer */
 		}
 	}
 	simple_pt_init_msrs();
@@ -836,6 +854,18 @@ out_buffers:
 	return err;
 }
 
+static void free_topa(u64 *topa)
+{
+	int j;
+
+	for (j = 1; j < pt_num_buffers; j++) {
+		if (!(topa[j] & TOPA_END))
+			free_pages((unsigned long)__va(topa[j] &
+				~(u64)(pt_buffer_order << TOPA_SIZE_SHIFT)),
+					pt_buffer_order);
+	}
+}
+
 static void free_all_buffers(void)
 {
 	int cpu;
@@ -843,8 +873,11 @@ static void free_all_buffers(void)
 	unregister_cpu_notifier(&cpu_notifier);
 	get_online_cpus();
 	for_each_possible_cpu (cpu) {
-		if (per_cpu(topa_cpu, cpu))
-			free_page((unsigned long)per_cpu(topa_cpu, cpu));
+		if (per_cpu(topa_cpu, cpu)) {
+			u64 *topa = per_cpu(topa_cpu, cpu);
+			free_topa(topa);
+			free_page((unsigned long)topa);
+		}
 		if (per_cpu(pt_buffer_cpu, cpu))
 			free_pages(per_cpu(pt_buffer_cpu, cpu), pt_buffer_order);
 	}
