@@ -27,7 +27,9 @@
  * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ *
+ * Alternatively you can use this file under the GPLv2.
+ */
 
 
 /* Notebook:
@@ -771,5 +773,5 @@ static void simple_pt_exit(void)
 
 module_init(simple_pt_init);
 module_exit(simple_pt_exit);
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Andi Kleen");
