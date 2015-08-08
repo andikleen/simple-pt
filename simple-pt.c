@@ -71,12 +71,20 @@
 #define MSR_IA32_RTIT_OUTPUT_MASK_PTRS	0x00000561
 #define MSR_IA32_RTIT_CTL		0x00000570
 #define TRACE_EN	BIT(0)
+#define CYC_EN		BIT(1)
 #define CTL_OS		BIT(2)
 #define CTL_USER	BIT(3)
 #define CR3_FILTER	BIT(7)
 #define TO_PA		BIT(8)
+#define MTC_EN		BIT(9)
 #define TSC_EN		BIT(10)
 #define DIS_RETC	BIT(11)
+#define BRANCH_EN	BIT(13)
+#define MTC_MASK	(0xf << 14)
+#define CYC_MASK	(0xf << 19)
+#define PSB_MASK	(0xf << 24)
+#define ADDR0_MASK	(0x3ULL << 32)
+#define ADDR1_MASK	(0x3ULL << 36)
 #define MSR_IA32_RTIT_STATUS		0x00000571
 #define MSR_IA32_CR3_MATCH		0x00000572
 #define TOPA_STOP	BIT(4)
@@ -121,6 +129,9 @@ static DEFINE_PER_CPU(u64, pt_offset);
 static int pt_error;
 static bool initialized;
 static bool has_cr3_match;
+static unsigned psb_freq_mask;
+static unsigned cyc_thresh_mask;
+static unsigned mtc_freq_mask;
 
 static int pt_buffer_order = 9;
 module_param(pt_buffer_order, int, 0444);
@@ -154,7 +165,16 @@ module_param(single_range, bool, 0444);
 MODULE_PARM_DESC(single_range, "Use single range output");
 static int enumerate_all = 0;
 module_param_cb(enumerate_all, &enumerate_ops, &enumerate_all, 0644);
-MODULE_PARM_DESC(enumerate_all, "Enumerate all processes CR3s (only use afer initialization)");
+MODULE_PARM_DESC(enumerate_all, "Enumerate all processes CR3s (only use after initialization)");
+static int cyc_thresh = 0;
+module_param_cb(cyc_thresh, &resync_ops, &cyc_thresh, 0644);
+MODULE_PARM_DESC(cyc_thresh, "Send cycle packets at every 2^(n-1) cycles (if supported)");
+static int mtc_freq = 0;
+module_param_cb(mtc_freq, &resync_ops, &mtc_freq, 0644);
+MODULE_PARM_DESC(mtc_freq, "Enable MTC packets at frequency 2^(n-1) (if supported)");
+static int psb_freq = 0;
+module_param_cb(psb_freq, &resync_ops, &psb_freq, 0644);
+MODULE_PARM_DESC(mtc_freq, "Send PSB packets every 2K^n bytes (if supported)");
 
 static DEFINE_MUTEX(restart_mutex);
 
@@ -207,8 +227,9 @@ static int start_pt(void)
 		pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
 	}
 
-	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC | TO_PA);
-	val |= TRACE_EN;
+	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC | TO_PA | BRANCH_EN | CYC_EN |
+		 MTC_EN | MTC_MASK | CYC_MASK | PSB_MASK | ADDR0_MASK | ADDR1_MASK);
+	val |= TRACE_EN | BRANCH_EN;
 	if (!single_range)
 		val |= TO_PA;
 	if (tsc_en)
@@ -224,6 +245,12 @@ static int start_pt(void)
 	}
 	if (dis_retc)
 		val |= DIS_RETC;
+	if (cyc_thresh && ((1U << (cyc_thresh-1)) & cyc_thresh_mask))
+		val |= ((cyc_thresh - 1) << 19) | CYC_EN;
+	if (mtc_freq && (1U << mtc_freq & mtc_freq_mask))
+		val |= (mtc_freq  << 14) | MTC_EN;
+	if (psb_freq && (1U << (psb_freq_mask-1)))
+		val |= (psb_freq - 1) << 24;
 	if (pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
 		return -1;
 	__this_cpu_write(pt_running, true);
@@ -576,6 +603,7 @@ static void free_all_buffers(void);
 static int simple_pt_init(void)
 {
 	unsigned a, b, c, d;
+	unsigned a1, b1, c1, d1;
 	int err;
 
 	/* check cpuid */
@@ -590,6 +618,14 @@ static int simple_pt_init(void)
 		return -EIO;
 	}
 	has_cr3_match = !!(b & BIT(0));
+	a1 = b1 = c1 = d1 = 0;
+	if (a >= 1)
+		cpuid_count(0x07, 1, &a1, &b1, &c1, &d1);
+	if (b & BIT(1)) {
+		mtc_freq_mask = (a1 >> 16) & 0xffff;
+		cyc_thresh_mask = b1 & 0xffff;
+		psb_freq_mask = (b1 >> 16) & 0xffff;
+	}
 
 	err = misc_register(&simple_pt_miscdev);
 	if (err < 0) {
