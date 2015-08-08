@@ -11,8 +11,8 @@ When cmd has options please use -- to separate them from the sptcmd options.
 
 sptcmd [options] cmd
 -c COMM  Set comm filter for comm (only trace that command)
--k trace kernel code
--U disable user trace
+-K disable kernel trace (default on)
+-U disable user trace (default on)
 -t enable msr trace in side band
 -R disable return compression
 -d Always reload driver
@@ -25,10 +25,10 @@ EOU
 unset COMM KERNEL TRACE USERMODE DISRETC DRIVER DONTDUMP PREFIX ENUMALL
 ENUMDFL=1
 
-while getopts "c:ktURdNo:e" opt ; do
+while getopts "c:KtURdNo:e" opt ; do
 	case "$opt" in
 	c) COMM="$OPTARG" ; ENUMDFL=0 ;;
-	k) KERNEL=1 ;;
+	K) KERNEL=0 ;;
 	t) TRACE=1 ;;
 	U) USERMODE=0 ;;
 	R) DISRETC=1 ;;
@@ -43,7 +43,7 @@ done
 shift $((OPTIND - 1))
 
 COMM=${COMM:-}
-KERNEL=${KERNEL:-0}
+KERNEL=${KERNEL:-1}
 TRACE=${TRACE:-0}
 USERMODE=${USERMODE:-1}
 DISRETC=${DISRETC:-0}
