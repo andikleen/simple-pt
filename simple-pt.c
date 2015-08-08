@@ -133,15 +133,19 @@ static struct kernel_param_ops enumerate_ops = {
 
 static unsigned addr_range_num;
 
-static int addr_set(const char *val, const struct kernel_param *kp)
+static int symbol_set(const char *val, const struct kernel_param *kp)
 {
 	int ret = -EIO;
+	if (!isdigit(val[0])) {
+		char sym[128];
+		unsigned offset = 0;
+		unsigned long addr;
 
-	if (addr_range_num == 0)
-		return -EINVAL;
-
-	if (!isxdigit(val[0])) {
-		unsigned long addr = kallsyms_lookup_name(val);
+		sym[0] = 0;
+		sscanf(val, "%128[^+]+%u", sym, &offset);
+		addr = kallsyms_lookup_name(sym);
+		if (addr && offset)
+			addr += offset;
 		if (addr) {
 			*(unsigned long *)(kp->arg) = addr;
 			ret = 0;
@@ -149,6 +153,16 @@ static int addr_set(const char *val, const struct kernel_param *kp)
 	} else {
 		ret = param_set_ulong(val, kp);
 	}
+	return ret;
+}
+
+static int addr_set(const char *val, const struct kernel_param *kp)
+{
+	int ret;
+	if (addr_range_num == 0)
+		return -EINVAL;
+
+	ret = symbol_set(val, kp);
 	if (start)
 		restart();
 	return ret;
