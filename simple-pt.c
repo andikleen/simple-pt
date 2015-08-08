@@ -57,6 +57,7 @@
 #include <linux/kallsyms.h>
 #include <linux/kprobes.h>
 #include <linux/dcache.h>
+#include <linux/syscore_ops.h>
 #include <trace/events/sched.h>
 #include <asm/msr.h>
 #include <asm/processor.h>
@@ -281,6 +282,21 @@ static void do_enumerate_all(void)
 	read_unlock(my_tasklist_lock);
 }
 
+static void simple_pt_init_msrs(void)
+{
+	if (!single_range) {
+		u64 *topa;
+		topa = __this_cpu_read(topa_cpu);
+		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(topa));
+	} else {
+		unsigned long pt_buffer;
+		pt_buffer = __this_cpu_read(pt_buffer_cpu);
+		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(pt_buffer));
+	}
+	init_mask_ptrs();
+	pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
+}
+
 static void simple_pt_cpu_init(void *arg)
 {
 	int cpu = smp_processor_id();
@@ -296,35 +312,36 @@ static void simple_pt_cpu_init(void *arg)
 	}
 
 	/* allocate buffer */
-	pt_buffer = __get_free_pages(GFP_KERNEL|__GFP_NOWARN|__GFP_ZERO, pt_buffer_order);
+	pt_buffer = __this_cpu_read(pt_buffer_cpu);
 	if (!pt_buffer) {
-		pr_err("cpu %d, Cannot allocate %ld KB buffer\n", cpu,
-				(PAGE_SIZE << pt_buffer_order) / 1024);
-		pt_error = -ENOMEM;
-		return;
+		pt_buffer = __get_free_pages(GFP_KERNEL|__GFP_NOWARN|__GFP_ZERO, pt_buffer_order);
+		if (!pt_buffer) {
+			pr_err("cpu %d, Cannot allocate %ld KB buffer\n", cpu,
+					(PAGE_SIZE << pt_buffer_order) / 1024);
+			pt_error = -ENOMEM;
+			return;
+		}
+		__this_cpu_write(pt_buffer_cpu, pt_buffer);
 	}
-	__this_cpu_write(pt_buffer_cpu, pt_buffer);
 
 	if (!single_range) {
 		/* allocate topa */
-		topa = (u64 *)__get_free_page(GFP_KERNEL|__GFP_ZERO);
+		topa = __this_cpu_read(topa_cpu);
 		if (!topa) {
-			pr_err("cpu %d, Cannot allocate topa page\n", cpu);
-			pt_error = -ENOMEM;
-			goto out_pt_buffer;
+			topa = (u64 *)__get_free_page(GFP_KERNEL|__GFP_ZERO);
+			if (!topa) {
+				pr_err("cpu %d, Cannot allocate topa page\n", cpu);
+				pt_error = -ENOMEM;
+				goto out_pt_buffer;
+			}
+			__this_cpu_write(topa_cpu, topa);
+
+			/* create circular single entry topa table */
+			topa[0] = (u64)__pa(pt_buffer) | (pt_buffer_order << TOPA_SIZE_SHIFT);
+			topa[1] = (u64)__pa(topa) | TOPA_END; /* circular buffer */
 		}
-		__this_cpu_write(topa_cpu, topa);
-
-		/* create circular single entry topa table */
-		topa[0] = (u64)__pa(pt_buffer) | (pt_buffer_order << TOPA_SIZE_SHIFT);
-		topa[1] = (u64)__pa(topa) | TOPA_END; /* circular buffer */
-		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(topa));
-	} else {
-		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_BASE, __pa(pt_buffer));
 	}
-	init_mask_ptrs();
-
-	pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
+	simple_pt_init_msrs();
 	return;
 
 out_pt_buffer:
@@ -535,6 +552,25 @@ static struct notifier_block panic_notifier = {
 	.notifier_call = simple_pt_panic,
 };
 
+/* No tracing over suspend for now. */
+
+static int simple_pt_suspend(void)
+{
+	stop_pt(NULL);
+	start = 0;
+	return 0;
+}
+
+static void simple_pt_resume(void)
+{
+	simple_pt_cpu_init(NULL);
+}
+
+static struct syscore_ops simple_pt_syscore = {
+	.suspend = simple_pt_suspend,
+	.resume = simple_pt_resume,
+};
+
 static void free_all_buffers(void);
 
 static int simple_pt_init(void)
@@ -583,6 +619,8 @@ static int simple_pt_init(void)
 	}
 
 	atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
+
+	register_syscore_ops(&simple_pt_syscore);
 
 	initialized = true;
 	if (start)
