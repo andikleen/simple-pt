@@ -798,6 +798,8 @@ static int simple_pt_init(void)
 	has_cr3_match = !!(b & BIT(0));
 	if (b & BIT(2))
 		addr_cfg_max = 2;
+	if (!(c & BIT(1)))
+		pt_num_buffers = 1;
 	a1 = b1 = c1 = d1 = 0;
 	if (a >= 1)
 		cpuid_count(0x07, 1, &a1, &b1, &c1, &d1);
