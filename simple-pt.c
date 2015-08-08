@@ -93,11 +93,13 @@
 #define TOPA_SIZE_SHIFT 6
 
 static void restart(void);
+static int start = 0;
 
 static int resync_set(const char *val, const struct kernel_param *kp)
 {
 	int ret = param_set_int(val, kp);
-	restart();
+	if (start)
+		restart();
 	return ret;
 }
 
@@ -136,7 +138,6 @@ static unsigned mtc_freq_mask;
 static int pt_buffer_order = 9;
 module_param(pt_buffer_order, int, 0444);
 MODULE_PARM_DESC(pt_buffer_order, "Order of PT buffer size per CPU (2^n pages)");
-static int start = 0;
 module_param_cb(start, &resync_ops, &start, 0644);
 MODULE_PARM_DESC(start, "Set to 1 to start trace, or 0 to stop");
 static int user = 1;
