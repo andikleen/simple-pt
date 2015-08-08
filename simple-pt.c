@@ -283,7 +283,8 @@ static int start_pt(void)
 
 	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC | TO_PA | CYC_EN |
 		 MTC_EN | MTC_MASK | CYC_MASK | PSB_MASK | ADDR0_MASK | ADDR1_MASK);
-	val |= TRACE_EN | BRANCH_EN;
+	val |= TRACE_EN;
+	/* val |= BRANCH_EN; */ /* BDW doesn't like this */
 	if (!single_range)
 		val |= TO_PA;
 	if (tsc_en)
