@@ -33,7 +33,6 @@
 
 
 /* Notebook:
-   Add stop-on-kprobe
    Multiple entry toPA
    Auto probe largest buffer
    Test old kernels
@@ -173,6 +172,59 @@ static struct kernel_param_ops addr_ops = {
 	.get = param_get_ulong,
 };
 
+/* Protects start/stop_kprobe_set and the kprobes */
+static DEFINE_MUTEX(kprobe_mutex);
+static bool start_kprobe_set;
+
+static int probe_start(struct kprobe *kp, struct pt_regs *regs);
+static int probe_stop(struct kprobe *kp, struct pt_regs *regs);
+
+static struct kprobe start_kprobe = {
+	.pre_handler = probe_start
+};
+static bool stop_kprobe_set;
+static struct kprobe stop_kprobe = {
+	.pre_handler = probe_stop
+};
+
+static int trace_start_set(const char *val, const struct kernel_param *kp)
+{
+	int ret = symbol_set(val, kp);
+
+	mutex_lock(&kprobe_mutex);
+	if (start_kprobe_set)
+		unregister_kprobe(&start_kprobe);
+	start_kprobe_set = true;
+	start_kprobe.addr = (kprobe_opcode_t *)*(unsigned long *)(kp->arg);
+	register_kprobe(&start_kprobe);
+	mutex_unlock(&kprobe_mutex);
+
+	return ret;
+}
+
+static int trace_stop_set(const char *val, const struct kernel_param *kp)
+{
+	int ret = symbol_set(val, kp);
+
+	mutex_lock(&kprobe_mutex);
+	if (stop_kprobe_set)
+		unregister_kprobe(&stop_kprobe);
+	stop_kprobe_set = true;
+	stop_kprobe.addr = (kprobe_opcode_t *)*(unsigned long *)(kp->arg);
+	register_kprobe(&stop_kprobe);
+	mutex_unlock(&kprobe_mutex);
+	return ret;
+}
+
+static struct kernel_param_ops trace_start_ops = {
+	.set = trace_start_set,
+	.get = param_get_ulong,
+};
+
+static struct kernel_param_ops trace_stop_ops = {
+	.set = trace_stop_set,
+	.get = param_get_ulong,
+};
 
 static DEFINE_PER_CPU(unsigned long, pt_buffer_cpu);
 static DEFINE_PER_CPU(u64 *, topa_cpu);
@@ -226,25 +278,31 @@ module_param_cb(mtc_freq, &resync_ops, &mtc_freq, 0644);
 MODULE_PARM_DESC(mtc_freq, "Enable MTC packets at frequency 2^(n-1) (if supported)");
 static int psb_freq = 0;
 module_param_cb(psb_freq, &resync_ops, &psb_freq, 0644);
-MODULE_PARM_DESC(mtc_freq, "Send PSB packets every 2K^n bytes (if supported)");
+MODULE_PARM_DESC(psb_freq, "Send PSB packets every 2K^n bytes (if supported)");
 static u64 addr0_start;
 module_param_cb(addr0_start, &addr_ops, &addr0_start, 0644);
-MODULE_PARM_DESC(addr0_start, "Virtual start address of address range 0. Hex or kernel symbol");
+MODULE_PARM_DESC(addr0_start, "Virtual start address of address range 0. Hex or kernel symbol+offset");
 static u64 addr0_end;
 module_param_cb(addr0_end, &addr_ops, &addr0_end, 0644);
-MODULE_PARM_DESC(addr0_end, "Virtual end address of address range 0. Hex or kernel symbol");
+MODULE_PARM_DESC(addr0_end, "Virtual end address of address range 0. Hex or kernel symbol+offset");
 static unsigned addr0_cfg;
 module_param_cb(addr0_cfg, &resync_ops, &addr0_cfg, 0644);
 MODULE_PARM_DESC(addr0_end, "Mode of address range 0: 0 = off, 1 = filter, 2 = trace-stop (if supported)");
 static u64 addr1_start;
 module_param_cb(addr1_start, &addr_ops, &addr1_start, 0644);
-MODULE_PARM_DESC(addr1_start, "Virtual start address of address range 1. Hex or kernel symbol");
+MODULE_PARM_DESC(addr1_start, "Virtual start address of address range 1. Hex or kernel symbol+offset");
 static u64 addr1_end;
 module_param_cb(addr1_end, &addr_ops, &addr1_end, 0644);
-MODULE_PARM_DESC(addr1_end, "Virtual end address of address range 1. Hex or kernel symbol");
+MODULE_PARM_DESC(addr1_end, "Virtual end address of address range 1. Hex or kernel symbol+offset");
 static unsigned addr1_cfg;
 module_param_cb(addr1_cfg, &resync_ops, &addr1_cfg, 0644);
 MODULE_PARM_DESC(addr1_end, "Mode of address range 1: 0 = off, 1 = filter, 2 = trace-stop (if supported)");
+static unsigned long trace_stop;
+module_param_cb(trace_stop, &trace_start_ops, &trace_stop, 0644);
+MODULE_PARM_DESC(trace_stop, "Stop trace when reaching kernel address. Can be kernel symbol+offset");
+static unsigned long trace_start;
+module_param_cb(trace_start, &trace_stop_ops, &trace_start, 0644);
+MODULE_PARM_DESC(trace_start, "Start trace when reaching kernel address. Can be kernel symbol+offset");
 
 static DEFINE_MUTEX(restart_mutex);
 
@@ -297,9 +355,11 @@ static int start_pt(void)
 		pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
 	}
 
-	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC | TO_PA | CYC_EN |
+	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC | TO_PA |
+		 CYC_EN | TRACE_EN |
 		 MTC_EN | MTC_MASK | CYC_MASK | PSB_MASK | ADDR0_MASK | ADDR1_MASK);
-	val |= TRACE_EN;
+	if (!start_kprobe_set)
+		val |= TRACE_EN;
 	/* val |= BRANCH_EN; */ /* BDW doesn't like this */
 	if (!single_range)
 		val |= TO_PA;
@@ -373,6 +433,24 @@ static void restart(void)
 	mutex_lock(&restart_mutex);
 	on_each_cpu(start ? do_start_pt : stop_pt, NULL, 1);
 	mutex_unlock(&restart_mutex);
+}
+
+static int probe_start(struct kprobe *kp, struct pt_regs *regs)
+{
+	u64 val;
+	pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val);
+	val |= TRACE_EN;
+	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val);
+	return 0;
+}
+
+static int probe_stop(struct kprobe *kp, struct pt_regs *regs)
+{
+	u64 val;
+	pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val);
+	val &= ~TRACE_EN;
+	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val);
+	return 0;
 }
 
 static void do_enumerate_all(void)
@@ -780,6 +858,10 @@ static void simple_pt_exit(void)
 	misc_deregister(&simple_pt_miscdev);
 	compat_unregister_trace_sched_process_exec(probe_sched_process_exec, NULL);
 	unregister_kprobe(&mmap_kp);
+	if (start_kprobe_set)
+		unregister_kprobe(&start_kprobe);
+	if (stop_kprobe_set)
+		unregister_kprobe(&stop_kprobe);
 	atomic_notifier_chain_unregister(&panic_notifier_list, &panic_notifier);
 	unregister_syscore_ops(&simple_pt_syscore);
 	unregister_cpu_notifier(&cpu_notifier);
