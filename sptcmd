@@ -29,16 +29,19 @@ Following flags are not supported on Broadwell:
 	      Two ranges allowed (shared with -S)
 -S start,end  Stop trace when reaching virtual address start-end. Can be kernel
 	      symbols. Two ranges allowed (shared with -F)
+-s start      Start trace on CPU when kernel symbol start is hit. Can be address              or sym+offset
+-y stop	      Stop trace on CPU when kernel symbol stop is hit. Can be address
+              or sym+offset
 EOU
 }
 
 unset COMM KERNEL TRACE USERMODE DISRETC DRIVER DONTDUMP PREFIX ENUMALL
-unset CYC_THRESH MTC_FREQ PSB_FREQ FILTER TSTOP
+unset CYC_THRESH MTC_FREQ PSB_FREQ FILTER TSTOP START STOP
 declare -a RANGE_START RANGE_END
 NUM_RANGE=0
 ENUMDFL=1
 
-while getopts "c:KtURdNo:eC:M:P:F:S:" opt ; do
+while getopts "c:KtURdNo:eC:M:P:F:S:s:y:" opt ; do
 	case "$opt" in
 	c) COMM="$OPTARG" ; ENUMDFL=0 ;;
 	K) KERNEL=0 ;;
@@ -64,6 +67,8 @@ while getopts "c:KtURdNo:eC:M:P:F:S:" opt ; do
 	   RANGE_CFG[$NUM_RANGE]=2
 	   (( NUM_RANGE++ ))
 	   ;;
+	s) START="$OPTARG" ;;
+	y) STOP="$OPTARG" ;;
 	\?) usage ; exit 1 ;;
 	*) break ;;
 	esac
@@ -82,6 +87,8 @@ ENUMALL=${ENUMALL:-$ENUMDFL}
 CYC_THRESH=${CYC_THRESH:-0}
 MTC_FREQ=${MTC_FREQ:-0}
 PSB_FREQ=${PSB_FREQ:-0}
+START=${START:-}
+STOP=${STOP:-}
 
 PATH=$PATH:$(dirname $0)
 
@@ -114,6 +121,12 @@ for (( r = 0; r < NUM_RANGE; r++ )) ; do
 	echo $RANGE_END[$r] > $C/addr${r}_end
 	echo $RANGE_CFG[$r] > $C/addr${r}_cfg
 done
+if [ "$START" != "" ] ; then
+	echo $START > $C/trace_start
+fi
+if [ "$STOP" != "" ] ; then
+	echo $STOP > $C/trace_stop
+fi
 echo > $T/trace
 echo $ENUMALL > $C/enumerate_all
 if [ "$ENUMALL" != 0 ] ; then
