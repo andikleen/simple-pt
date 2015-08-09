@@ -99,13 +99,11 @@
 #define MSR_IA32_ADDR1_END		0x00000583
 
 static void restart(void);
-static int start = 0;
 
 static int resync_set(const char *val, const struct kernel_param *kp)
 {
 	int ret = param_set_int(val, kp);
-	if (start)
-		restart();
+	restart();
 	return ret;
 }
 
@@ -154,6 +152,8 @@ static int symbol_set(const char *val, const struct kernel_param *kp)
 	}
 	return ret;
 }
+
+static int start = 0;
 
 static int addr_set(const char *val, const struct kernel_param *kp)
 {
