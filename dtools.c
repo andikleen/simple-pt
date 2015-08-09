@@ -39,12 +39,12 @@
 #include "map.h"
 #include "elf.h"
 
-struct pt_insn_decoder *init_decoder(char *fn)
+struct pt_insn_decoder *init_decoder(char *fn, char *cpu)
 {
 	struct pt_config config;
 	pt_config_init(&config);
-
-	/* XXX configure cpu */
+	pt_cpu_parse(&config.cpu, cpu);
+	pt_cpu_errata(&config.errata, &config.cpu);
 
 	size_t len;
 	unsigned char *map = mapfile(fn, &len);

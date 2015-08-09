@@ -336,7 +336,8 @@ static int decode(struct pt_insn_decoder *decoder)
 				if (dump_insn)
 					print_insn(&insn);
 				insncnt++;
-				pt_insn_time(decoder, &si->ts);
+				// XXX use lost counts
+				pt_insn_time(decoder, &si->ts, NULL, NULL);
 				uint32_t ratio;
 				si->ratio = 0;
 				pt_insn_core_bus_ratio(decoder, &ratio);
@@ -358,7 +359,7 @@ static int decode(struct pt_insn_decoder *decoder)
 					}
 					si->dst = insn.ip;
 					if (!si->ts) {
-						pt_insn_time(decoder, &si->ts);
+						pt_insn_time(decoder, &si->ts, NULL, NULL);
 						if (si->ts && si->ts == last_ts)
 							si->ts = 0;
 					}
@@ -410,6 +411,7 @@ void usage(void)
 	fprintf(stderr, "--freq/-f freq   Use frequency to convert time stamps (Ghz). cur for current system.\n");
 	fprintf(stderr, "--insn/-i        dump instruction bytes\n");
 	fprintf(stderr, "--loop/-l	  detect loops\n");
+	fprintf(stderr, "--cpu/-c cpuname cpu that collected the trace (in family/model/stepping)\n");
 	exit(1);
 }
 
@@ -420,6 +422,7 @@ struct option opts[] = {
 	{ "insn", no_argument, NULL, 'i' },
 	{ "sideband", required_argument, NULL, 's' },
 	{ "loop", no_argument, NULL, 'l' },
+	{ "cpu", required_argument, NULL, 'c' },
 	{ }
 };
 
@@ -428,7 +431,9 @@ int main(int ac, char **av)
 	struct pt_insn_decoder *decoder = NULL;
 	struct pt_image *image = pt_image_alloc("simple-pt");
 	int c;
-	while ((c = getopt_long(ac, av, "e:p:f:is:l", opts, NULL)) != -1) {
+	char *cpu = NULL;
+
+	while ((c = getopt_long(ac, av, "e:p:f:is:lc:", opts, NULL)) != -1) {
 		char *end;
 		switch (c) {
 		case 'e':
@@ -443,7 +448,7 @@ int main(int ac, char **av)
 				fprintf(stderr, "Only one PT file supported\n");
 				usage();
 			}
-			decoder = init_decoder(optarg);
+			decoder = init_decoder(optarg, cpu);
 			break;
 		case 'f':
 			if (!strcmp(optarg, "cur")) {
@@ -466,6 +471,13 @@ int main(int ac, char **av)
 			break;
 		case 'l':
 			detect_loop = true;
+			break;
+		case 'c':
+			if (decoder) {
+				fprintf(stderr, "--cpu/-c must be before --pt\n");
+				exit(1);
+			}
+			cpu = optarg;
 			break;
 		default:
 			usage();
