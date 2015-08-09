@@ -87,17 +87,26 @@ void add_progbits(Elf *elf, struct pt_image *image, char *fn, uint64_t base,
 		GElf_Phdr phdr;
 		gelf_getphdr(elf, i, &phdr);
 
-		if (phdr.p_type == PT_LOAD) {
+		if ((phdr.p_type == PT_LOAD) && (phdr.p_flags & PF_X)) {
 			struct pt_asid asid;
 			int err;
 
 			pt_asid_init(&asid);
 			asid.cr3 = cr3;
+			errno = 0;
+
 			err = pt_image_add_file(image, fn, phdr.p_offset, phdr.p_filesz,
 					       &asid, phdr.p_vaddr + offset);
+			/* Duplicate. Just ignore. */
+			if (err == -pte_bad_image)
+				continue;
 			if (err < 0) {
-				fprintf(stderr, "reading prog code from %s: %s (%s)\n",
-						fn, pt_errstr(pt_errcode(err)), strerror(errno));
+				fprintf(stderr, "reading prog code at %lx:%lx from %s: %s (%s): %d\n",
+						phdr.p_vaddr,
+						phdr.p_filesz,
+						fn, pt_errstr(pt_errcode(err)),
+						errno ? strerror(errno) : "",
+						err);
 				return;
 			}
 		}
