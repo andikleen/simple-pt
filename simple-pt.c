@@ -174,7 +174,6 @@ static struct kernel_param_ops addr_ops = {
 
 /* Protects start/stop_kprobe_set and the kprobes */
 static DEFINE_MUTEX(kprobe_mutex);
-static bool start_kprobe_set;
 
 static int probe_start(struct kprobe *kp, struct pt_regs *regs);
 static int probe_stop(struct kprobe *kp, struct pt_regs *regs);
@@ -182,38 +181,38 @@ static int probe_stop(struct kprobe *kp, struct pt_regs *regs);
 static struct kprobe start_kprobe = {
 	.pre_handler = probe_start
 };
-static bool stop_kprobe_set;
 static struct kprobe stop_kprobe = {
 	.pre_handler = probe_stop
 };
 
-static int trace_start_set(const char *val, const struct kernel_param *kp)
+static int kprobe_set(const char *val, const struct kernel_param *kp,
+		      struct kprobe *kprobe)
 {
 	int ret = symbol_set(val, kp);
+	unsigned long addr = *(unsigned long *)(kp->arg);
 
 	mutex_lock(&kprobe_mutex);
-	if (start_kprobe_set)
-		unregister_kprobe(&start_kprobe);
-	start_kprobe_set = true;
-	start_kprobe.addr = (kprobe_opcode_t *)*(unsigned long *)(kp->arg);
-	register_kprobe(&start_kprobe);
+	if (kprobe->addr) {
+		unregister_kprobe(kprobe);
+		kprobe->addr = NULL;
+	}
+	if (addr) {
+		kprobe->addr = (kprobe_opcode_t *)addr;
+		register_kprobe(kprobe);
+	}
 	mutex_unlock(&kprobe_mutex);
 
 	return ret;
 }
 
+static int trace_start_set(const char *val, const struct kernel_param *kp)
+{
+	return kprobe_set(val, kp, &start_kprobe);
+}
+
 static int trace_stop_set(const char *val, const struct kernel_param *kp)
 {
-	int ret = symbol_set(val, kp);
-
-	mutex_lock(&kprobe_mutex);
-	if (stop_kprobe_set)
-		unregister_kprobe(&stop_kprobe);
-	stop_kprobe_set = true;
-	stop_kprobe.addr = (kprobe_opcode_t *)*(unsigned long *)(kp->arg);
-	register_kprobe(&stop_kprobe);
-	mutex_unlock(&kprobe_mutex);
-	return ret;
+	return kprobe_set(val, kp, &stop_kprobe);
 }
 
 static struct kernel_param_ops trace_start_ops = {
@@ -302,10 +301,10 @@ module_param_cb(addr1_cfg, &resync_ops, &addr1_cfg, 0644);
 MODULE_PARM_DESC(addr1_end, "Mode of address range 1: 0 = off, 1 = filter, 2 = trace-stop (if supported)");
 static unsigned long trace_stop;
 module_param_cb(trace_stop, &trace_start_ops, &trace_stop, 0644);
-MODULE_PARM_DESC(trace_stop, "Stop trace when reaching kernel address. Can be kernel symbol+offset");
+MODULE_PARM_DESC(trace_stop, "Stop trace when reaching kernel address. Can be kernel symbol+offset or 0 to disable");
 static unsigned long trace_start;
 module_param_cb(trace_start, &trace_stop_ops, &trace_start, 0644);
-MODULE_PARM_DESC(trace_start, "Start trace when reaching kernel address. Can be kernel symbol+offset");
+MODULE_PARM_DESC(trace_start, "Start trace when reaching kernel address. Can be kernel symbol+offset or 0 to disable");
 
 static DEFINE_MUTEX(restart_mutex);
 
@@ -361,7 +360,8 @@ static int start_pt(void)
 	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC | TO_PA |
 		 CYC_EN | TRACE_EN |
 		 MTC_EN | MTC_MASK | CYC_MASK | PSB_MASK | ADDR0_MASK | ADDR1_MASK);
-	if (!start_kprobe_set)
+	/* Otherwise wait for start trigger */
+	if (start_kprobe.addr == 0)
 		val |= TRACE_EN;
 	/* val |= BRANCH_EN; */ /* BDW doesn't like this */
 	if (!single_range)
@@ -893,9 +893,9 @@ static void simple_pt_exit(void)
 	misc_deregister(&simple_pt_miscdev);
 	compat_unregister_trace_sched_process_exec(probe_sched_process_exec, NULL);
 	unregister_kprobe(&mmap_kp);
-	if (start_kprobe_set)
+	if (start_kprobe.addr)
 		unregister_kprobe(&start_kprobe);
-	if (stop_kprobe_set)
+	if (stop_kprobe.addr)
 		unregister_kprobe(&stop_kprobe);
 	atomic_notifier_chain_unregister(&panic_notifier_list, &panic_notifier);
 	unregister_syscore_ops(&simple_pt_syscore);
