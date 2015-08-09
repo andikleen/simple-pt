@@ -36,7 +36,7 @@ import re
 import sys
 
 # Sideband format:
-# timestamp cr3 load-address off-in-file path-to-binary
+# timestamp pid cr3 load-address off-in-file path-to-binary
 
 ap = argparse.ArgumentParser(usage='convert spt sideband .trace and .maps files to .sideband for sptdecode')
 ap.add_argument('trace', help='trace file', type=argparse.FileType('r'))
@@ -52,6 +52,7 @@ for l in arguments.trace:
     proc, cpu, flags, ts, tp = f[:5]
     ts = ts.replace(":", "")
     args = dict([x.replace(",", "").split('=') for x in f[5:]])
+    pid = 0
     if tp == "process_cr3:":
 	pid = int(args['pid'])
         cr3s[pid] = args['cr3']
@@ -63,7 +64,7 @@ for l in arguments.trace:
     if not 'pgoff' in args:
         args['pgoff'] = '0'
     args['pgoff'] = int(args['pgoff']) * 4096
-    print ts,args['cr3'],args['addr'],"%d" % (args['pgoff']) + "\t" + args['fn']
+    print ts,pid,args['cr3'],args['addr'],"%d" % (args['pgoff']) + "\t" + args['fn']
 
 if arguments.maps:
     # /proc/1/maps:7ff4d5751000-7ff4d5950000 ---p 0000b000 08:02 266205                     /lib/x86_64-linux-gnu/libnss_files-2.19.so
@@ -85,4 +86,4 @@ if arguments.maps:
             continue
         if m.group('perm').find('x') < 0:
             continue
-        print "0.0", cr3s[int(m.group('pid'))], m.group('start'), m.group('pgoff') + "\t" + m.group('fn')
+        print "0.0", m.group('pid'), cr3s[int(m.group('pid'))], m.group('start'), m.group('pgoff') + "\t" + m.group('fn')

@@ -65,7 +65,7 @@ struct pt_insn_decoder *init_decoder(char *fn, char *cpu)
 }
 
 /* Sideband format:
-timestamp cr3 load-address off-in-file path-to-binary[:codebin]
+timestamp pid cr3 load-address off-in-file path-to-binary[:codebin]
  */
 void load_sideband(char *fn, struct pt_image *image)
 {
@@ -79,10 +79,11 @@ void load_sideband(char *fn, struct pt_image *image)
 	int lineno = 1;
 	while (getline(&line, &linelen, f) > 0) {
 		uint64_t cr3, addr, off;
+		unsigned pid;
 		double ts;
 		int n;
 
-		if (sscanf(line, "%lf %lx %lx %lx %n", &ts, &cr3, &addr, &off, &n) != 4) {
+		if (sscanf(line, "%lf %u %lx %lx %lx %n", &ts, &pid, &cr3, &addr, &off, &n) != 5) {
 			fprintf(stderr, "%s:%d: Parse error\n", fn, lineno);
 			exit(1);
 		}
@@ -90,6 +91,7 @@ void load_sideband(char *fn, struct pt_image *image)
 			n++;
 		/* timestamp ignored for now. could later be used to distinguish
 		   reused CR3s or reused address space. */
+		/* pid ignored for now. should use in decoding. */
 		char *p = strchr(line + n, '\n');
 		if (p) {
 			*p = 0;
