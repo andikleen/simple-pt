@@ -57,6 +57,10 @@ for l in arguments.trace:
 	pid = int(args['pid'])
         cr3s[pid] = args['cr3']
         continue
+    if tp == "exec_cr3:":
+        continue
+    if tp != "mmap_cr3:":
+        continue
     if not args['fn'].startswith("/"):
         continue
     if not 'addr' in args:
@@ -64,7 +68,7 @@ for l in arguments.trace:
     if not 'pgoff' in args:
         args['pgoff'] = '0'
     args['pgoff'] = int(args['pgoff']) * 4096
-    print ts,pid,args['cr3'],args['addr'],"%d" % (args['pgoff']) + "\t" + args['fn']
+    print ts, pid, args['cr3'], args['addr'], "%d" % (args['pgoff']) + "\t" + args['fn']
 
 if arguments.maps:
     # /proc/1/maps:7ff4d5751000-7ff4d5950000 ---p 0000b000 08:02 266205                     /lib/x86_64-linux-gnu/libnss_files-2.19.so
