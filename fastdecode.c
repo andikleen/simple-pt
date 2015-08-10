@@ -183,6 +183,11 @@ void decode_buffer(unsigned char *map, size_t len)
 					p += 4;
 					continue;
 				}
+				if (p[1] == 0b10000011) {
+					printf("tracestop\n");
+					p += 2;
+					continue;
+				}
 				if (p[1] == 0b11110011 && LEFT(8)) { /* OVF */
 					printf("ovf\n");
 					p += 8;
@@ -197,6 +202,38 @@ void decode_buffer(unsigned char *map, size_t len)
 				if (p[1] == 0b100011) { /* PSBEND */
 					printf("psbend\n");
 					p += 2;
+					continue;
+				}
+				/* MNT */
+				if (p[1] == 0b11000011 && LEFT(11) && p[2] == 0b10001000) {
+					printf("mnt\t%llx\n",
+						p[3] |
+						((u64)p[4] << 8) |
+						((u64)p[5] << 16) |
+						((u64)p[6] << 24) |
+						((u64)p[7] << 32) |
+						((u64)p[8] << 40) |
+						((u64)p[9] << 48) |
+						((u64)p[10] << 56));
+					p += 10;
+					continue;
+				}
+				/* TMA */
+				if (p[1] == 0b01110011 && LEFT(7)) {
+					printf("tma\tctc=%u fc=%u\n",
+							p[2] | (p[3] << 8),
+							p[5] | ((p[6] & 1) << 8));
+					p += 7;
+					continue;
+				}
+				/* VMCS */
+				if (p[1] == 0b11001000 && LEFT(7)) {
+					printf("vmcs\t%llx\n",
+						((u64)p[2] << 12) |
+						((u64)p[3] << 20) |
+						((u64)p[4] << 28) |
+						((u64)p[5] << 36) |
+						((u64)p[6] << 44));
 					continue;
 				}
 			}
@@ -257,8 +294,25 @@ void decode_buffer(unsigned char *map, size_t len)
 
 			if (*p == 0x19 && LEFT(8)) {  /* TSC */
 				p++;
-				printf("tsc\t%llx\n", get_val(&p, 7));
+				printf("tsc\t%llu\n", get_val(&p, 7));
 				continue;
+			}
+			if (*p == 0b01011001 && LEFT(2)) { /* MTC */
+				printf("mtc\t%u\n", p[1]);
+				p += 2;
+				continue;
+			}
+			if ((*p & 3) == 3) { /* CYC */
+				u64 cyc = *p >> 2;
+				unsigned shift = 4;
+				if (*p & 4 && LEFT(1)) {
+					do {
+						p++;
+						cyc |= (*p >> 1) << shift;
+						shift += 7;
+					} while ((*p & 1) && LEFT(1));
+				}
+				printf("cyc\t%llu\n", cyc);
 			}
 
 			print_unknown(p, end, map);
