@@ -90,6 +90,11 @@ PSB_FREQ=${PSB_FREQ:-0}
 START=${START:-}
 STOP=${STOP:-}
 
+if [ "$KERNEL" != 1 -a "$COMM" = "" ] ; then
+	echo >&2 WARNING Using -K without a -c filter.
+	echo >&2 WARNING Decoder will not be able to trace multiple processes.
+fi
+
 PATH=$PATH:$(dirname $0)
 
 [ -n "$DRIVER" ] && /sbin/rmmod simple_pt
