@@ -53,8 +53,9 @@ for l in arguments.trace:
     ts = ts.replace(":", "")
     args = dict([x.replace(",", "").split('=') for x in f[5:]])
     pid = 0
-    if tp == "process_cr3:":
+    if 'pid' in args:
 	pid = int(args['pid'])
+    if tp == "process_cr3:":
         cr3s[pid] = args['cr3']
         continue
     if tp == "exec_cr3:":
