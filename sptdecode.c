@@ -346,6 +346,9 @@ static int decode(struct pt_insn_decoder *decoder)
 					prev_ratio = ratio;
 				}
 				pt_insn_get_cr3(decoder, &si->cr3);
+				/* This happens when -K is used. Match everything for now. */
+				if (si->cr3 == -1L)
+					si->cr3 = 0;
 				if (si->ts && si->ts == last_ts)
 					si->ts = 0;
 				si->iclass = insn.iclass;
