@@ -36,7 +36,9 @@
 
 struct symtab *symtabs;
 
-struct symtab *add_symtab(unsigned num, unsigned long cr3)
+/* caller must fill in st->end */
+struct symtab *add_symtab(unsigned num, unsigned long cr3,
+			  unsigned long base)
 {
 	struct symtab *st = malloc(sizeof(struct symtab));
 	if (!st)
@@ -44,7 +46,9 @@ struct symtab *add_symtab(unsigned num, unsigned long cr3)
 	st->num = num;
 	st->next = symtabs;
 	st->cr3 = cr3;
+	st->base = base;
 	st->syms = malloc(num * sizeof(struct sym));
+	st->end = 0;
 	if (!st->syms)
 		exit(ENOMEM);
 	symtabs = st;
@@ -66,14 +70,30 @@ struct sym *findsym(unsigned long val, unsigned long cr3)
 {
 	struct symtab *st;
 	struct sym search = { .val = val }, *s;
+
+	/* add last hit cache here */
+
 	for (st = symtabs; st; st = st->next) {
 		if (st->cr3 && cr3 != st->cr3)
+			continue;
+		if (val < st->base || val >= st->end)
 			continue;
 		s = bsearch(&search, st->syms,  st->num, sizeof(struct sym), cmp_sym);
 		if (s)
 			return s;
 	}
 	return NULL;
+}
+
+bool seen_cr3(unsigned long cr3)
+{
+	struct symtab *st;
+
+	for (st = symtabs; st; st = st->next) {
+		if (st->cr3 == cr3)
+			return true;
+	}
+	return false;
 }
 
 void dump_symtab(struct symtab *st)

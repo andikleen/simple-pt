@@ -38,6 +38,7 @@
 #include "dtools.h"
 #include "map.h"
 #include "elf.h"
+#include "symtab.h"
 
 struct pt_insn_decoder *init_decoder(char *fn, char *cpu)
 {
@@ -87,6 +88,8 @@ void load_sideband(char *fn, struct pt_image *image)
 			fprintf(stderr, "%s:%d: Parse error\n", fn, lineno);
 			exit(1);
 		}
+		if (ts == 0 && !seen_cr3(cr3))
+			continue;
 		while (isspace(line[n]))
 			n++;
 		/* timestamp ignored for now. could later be used to distinguish

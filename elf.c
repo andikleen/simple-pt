@@ -37,7 +37,7 @@
 #include "symtab.h"
 #include "elf.h"
 
-void read_symtab(Elf *elf)
+void read_symtab(Elf *elf, uint64_t cr3, uint64_t base, uint64_t offset)
 {
 	Elf_Scn *section = NULL;
 
@@ -51,38 +51,51 @@ void read_symtab(Elf *elf)
 			int j;
 
 			unsigned numsym = sh->sh_size / sh->sh_entsize;
-			struct symtab *st = add_symtab(numsym);
+			struct symtab *st = add_symtab(numsym, cr3, base);
+			struct sym *s;
+			st->end = 0;
 			for (j = 0; j < numsym; j++) {
-				struct sym *s;
 				sym = gelf_getsymshndx(data, NULL, j, &symbol, NULL);
 				s = &st->syms[j];
 				s->name = strdup(elf_strptr(elf, shdr.sh_link, sym->st_name));
-				s->val = sym->st_value;
+				s->val = sym->st_value + offset;
 				s->size = sym->st_size;
+				if (st->end < s->val + s->size)
+					st->end = s->val + s->size;
 			}
 			sort_symtab(st);
 		}
 	}
 }
 
-void add_progbits(Elf *elf, struct pt_image *image, char *fn, uint64_t base,
-		 uint64_t cr3)
+static void find_offset(Elf *elf, uint64_t base, uint64_t *offset)
 {
-	int64_t offset = 0;
+	size_t numphdr;
+	uint64_t minaddr = UINT64_MAX;
+	int i;
+
+	if (!base) {
+		*offset = 0;
+		return;
+	}
+
+	elf_getphdrnum(elf, &numphdr);
+	for (i = 0; i < numphdr; i++) {
+		GElf_Phdr phdr;
+		gelf_getphdr(elf, i, &phdr);
+		if (phdr.p_type == PT_LOAD && phdr.p_vaddr < minaddr)
+			minaddr = phdr.p_vaddr;
+	}
+	*offset = base - minaddr;
+}
+
+void add_progbits(Elf *elf, struct pt_image *image, char *fn, uint64_t base,
+		 uint64_t cr3, uint64_t offset)
+{
 	size_t numphdr;
 	int i;
 
 	elf_getphdrnum(elf, &numphdr);
-	if (base) {
-		uint64_t minaddr = UINT64_MAX;
-		for (i = 0; i < numphdr; i++) {
-			GElf_Phdr phdr;
-			gelf_getphdr(elf, i, &phdr);
-			if (phdr.p_type == PT_LOAD && phdr.p_vaddr < minaddr)
-				minaddr = phdr.p_vaddr;
-		}
-		offset = base - minaddr;
-	}
 	for (i = 0; i < numphdr; i++) {
 		GElf_Phdr phdr;
 		gelf_getphdr(elf, i, &phdr);
@@ -137,7 +150,10 @@ static void elf_close(Elf *elf, int fd)
 
 int read_elf(char *fn, struct pt_image *image, uint64_t base, uint64_t cr3)
 {
+	uint64_t offset = 0;
 	elf_version(EV_CURRENT);
+
+	/* XXX add cache to read each file only once */
 
 	char *p = strchr(fn, ':');
 	if (p) {
@@ -150,14 +166,19 @@ int read_elf(char *fn, struct pt_image *image, uint64_t base, uint64_t cr3)
 	Elf *elf = elf_open(fn, &fd);
 	if (elf == NULL)
 		return -1;
-	read_symtab(elf);
+	bool shlib = false;
+	GElf_Ehdr header;
+	if (gelf_getehdr(elf, &header))
+		shlib = header.e_type != ET_EXEC;
+	find_offset(elf, base, &offset);
+	read_symtab(elf, cr3, base, shlib ? offset : 0);
 	if (p) {
 		elf_close(elf, fd);
 		elf = elf_open(p, &fd);
 		if (!elf)
 			return -1;
 	}
-	add_progbits(elf, image, p, base, cr3);
+	add_progbits(elf, image, p, base, cr3, offset);
 	elf_close(elf, fd);
 	return 0;
 }

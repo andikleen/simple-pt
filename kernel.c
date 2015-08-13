@@ -138,6 +138,7 @@ static void read_symbols(Elf *elf)
 	}
 	struct module *mod = NULL;
 	unsigned long long addr = 0;
+	unsigned long long kend = 0, kstart = -1ULL;
 	
 	char *line = NULL;
 	size_t linelen = 0;
@@ -149,7 +150,7 @@ static void read_symbols(Elf *elf)
 
 	rewind(f);
 	
-	struct symtab *ksymtab = add_symtab(numsyms);
+	struct symtab *ksymtab = add_symtab(numsyms, 0, 0);
 
 	int sindex = 0;
 	while (getline(&line, &linelen, f) > 0 && sindex < numsyms) {
@@ -196,8 +197,14 @@ static void read_symbols(Elf *elf)
 		sym->val = addr;
 		sym->size = 0;
 		sindex++;
+		if (addr > kend)
+			kend = addr;
+		if (addr < kstart)
+			kstart = addr;
 	}
 	ksymtab->num = sindex;	
+	ksymtab->end = kend;
+	ksymtab->base = kstart;
 	free(line);
 	fclose(f);
 
