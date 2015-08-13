@@ -9,38 +9,44 @@
 /* Map exec to CR3 to match to PIPs */
 
 TRACE_EVENT(exec_cr3,
-	    TP_PROTO(u64 cr3, char *fn),
-	    TP_ARGS(cr3, fn),
+	    TP_PROTO(u64 cr3, char *fn, unsigned pid),
+	    TP_ARGS(cr3, fn, pid),
 	    TP_STRUCT__entry(
 		    __string(filename, fn)
-		    __field(u64, cr3)),
+		    __field(u64, cr3)
+		    __field(unsigned, pid)),
 	    TP_fast_assign(
 		    __assign_str(filename, fn);
 		    __entry->cr3 = cr3;),
-	    TP_printk("cr3=%llx, fn=%s", __entry->cr3, __get_str(filename)));
+	    TP_printk("cr3=%llx, pid=%u, fn=%s", __entry->cr3, __entry->pid,
+		    __get_str(filename)));
 
 /* Map mmap file names to address, CR3 */
 
 TRACE_EVENT(mmap_cr3,
-	    TP_PROTO(u64 cr3, char *fn, unsigned long pgoff, unsigned long addr, unsigned long len),
-	    TP_ARGS(cr3, fn, pgoff, addr, len),
+	    TP_PROTO(u64 cr3, char *fn, unsigned long pgoff, unsigned long addr, unsigned long len,
+		     unsigned pid),
+	    TP_ARGS(cr3, fn, pgoff, addr, len, pid),
 	    TP_STRUCT__entry(
 		    __field(u64, cr3)
 		    __string(filename, fn)
 		    __field(unsigned long, pgoff)
 		    __field(unsigned long, addr)
-		    __field(unsigned long, len)),
+		    __field(unsigned long, len)
+		    __field(unsigned, pid)),
 	    TP_fast_assign(
 		    __entry->cr3 = cr3;
 		    __assign_str(filename, fn);
 		    __entry->pgoff = pgoff;
 		    __entry->addr = addr;
-		    __entry->len = len;),
-	    TP_printk("cr3=%llx, pgoff=%lx, addr=%lx, len=%lx, fn=%s",
+		    __entry->len = len;
+		    __entry->pid = pid;),
+	    TP_printk("cr3=%llx, pgoff=%lx, addr=%lx, len=%lx, pid=%u fn=%s",
 		      __entry->cr3,
 		      __entry->pgoff,
 		      __entry->addr,
 		      __entry->len,
+		      __entry->pid,
 		      __get_str(filename)));
 
 /* Initial enumeration of all processes with their cr3 */

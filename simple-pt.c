@@ -671,7 +671,7 @@ static void probe_sched_process_exec(void *arg,
 	if (IS_ERR(path))
 		goto out;
 
-	trace_exec_cr3(cr3, path);
+	trace_exec_cr3(cr3, path, current->pid);
 	if (comm_filter[0] && has_cr3_match) {
 		mutex_lock(&restart_mutex);
 		on_each_cpu(set_cr3_filter, &cr3, 1);
@@ -713,7 +713,8 @@ static int probe_mmap_region(struct kprobe *kp, struct pt_regs *regs)
 	if (IS_ERR(path))
 		goto out;
 
-	trace_mmap_cr3(retrieve_cr3(), path, pgoff, addr, len);
+	trace_mmap_cr3(retrieve_cr3(), path, pgoff, addr, len,
+		       current->pid);
 out:
 	free_page((unsigned long)pathbuf);
 	return 0;
