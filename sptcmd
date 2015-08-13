@@ -11,7 +11,6 @@ When cmd has options please use -- to separate them from the sptcmd options.
 
 sptcmd [options] cmd
 -c COMM  Set comm filter for comm (only trace that command)
--K disable kernel trace (default on)
 -U disable user trace (default on)
 -t enable msr trace in side band
 -R disable return compression
@@ -44,7 +43,7 @@ ENUMDFL=1
 while getopts "c:KtURdNo:eC:M:P:F:S:s:y:" opt ; do
 	case "$opt" in
 	c) COMM="$OPTARG" ; ENUMDFL=0 ;;
-	K) KERNEL=0 ;;
+	K) KERNEL=0 ;; # this breaks multi-process decoding.
 	t) TRACE=1 ;;
 	U) USERMODE=0 ;;
 	R) DISRETC=1 ;;
