@@ -113,9 +113,9 @@ static void print_tnt_byte(unsigned char v, int max)
 	int i;
 	for (i = max - 1; i >= 0; i--)
 		if (v & BIT(i))
-			putchar('!');
+			putchar('T');
 		else
-			putchar('.');
+			putchar('N');
 }
 
 static void print_tnt_stop(unsigned char v)
