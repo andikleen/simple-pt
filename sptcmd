@@ -177,7 +177,9 @@ echo > $T/trace
 echo $ENUMALL > $C/enumerate_all
 if [ "$ENUMALL" != 0 ] ; then
 	grep . /proc/[0-9]*/maps > ${PREFIX}.maps
-	echo "Wrote initial process maps to ${PREFIX}.maps"
+	echo >&2 "Wrote initial process maps to ${PREFIX}.maps"
+else
+	echo -n > ${PREFIX}.maps
 fi
 echo 1 > $C/start
 "$@"
