@@ -223,9 +223,14 @@ static int kprobe_set(const char *val, const struct kernel_param *kp,
 	return ret;
 }
 
+static bool delay_start;
+
 static int trace_start_set(const char *val, const struct kernel_param *kp)
 {
-	return kprobe_set(val, kp, &start_kprobe);
+	int ret = kprobe_set(val, kp, &start_kprobe);
+	if (start_kprobe.addr)
+		delay_start = true;
+	return ret;
 }
 
 static int trace_stop_set(const char *val, const struct kernel_param *kp)
@@ -382,7 +387,7 @@ static int start_pt(void)
 		 CYC_EN | TRACE_EN |
 		 MTC_EN | MTC_MASK | CYC_MASK | PSB_MASK | ADDR0_MASK | ADDR1_MASK);
 	/* Otherwise wait for start trigger */
-	if (start_kprobe.addr == 0)
+	if (!delay_start)
 		val |= TRACE_EN;
 	/* val |= BRANCH_EN; */ /* BDW doesn't like this */
 	if (!single_range)
@@ -465,6 +470,7 @@ static int probe_start(struct kprobe *kp, struct pt_regs *regs)
 	pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val);
 	val |= TRACE_EN;
 	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val);
+	delay_start = false;
 	return 0;
 }
 
