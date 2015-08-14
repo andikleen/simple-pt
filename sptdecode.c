@@ -231,6 +231,7 @@ struct local_pstate {
 struct global_pstate {
 	uint64_t last_ts;
 	uint64_t first_ts;
+	unsigned ratio;
 };
 
 static void print_loop(struct sinsn *si, struct local_pstate *ps)
@@ -259,8 +260,10 @@ static void print_output(struct sinsn *insnbuf, int sic,
 
 		if (si->speculative || si->aborted || si->committed)
 			print_tsx(si, &ps->prev_spec, &ps->indent);
-		if (si->ratio)
+		if (si->ratio && si->ratio != gps->ratio) {
 			printf("frequency %d\n", si->ratio);
+			gps->ratio = si->ratio;
+		}
 		if (si->disabled || si->enabled || si->resumed ||
 		    si->interrupted || si->resynced)
 			print_event(si);
