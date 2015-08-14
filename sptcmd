@@ -83,6 +83,7 @@ while getopts "c:KtURfdNo:eC:M:P:F:S:s:y:" opt ${ARGS[@]} ; do
 	R) DISRETC=1 ;;
 	d) DRIVER=1 ;;
 	N) DONTDUMP=1 ;;
+	f) FORCE=1 ;;
 	o) PREFIX="$OPTARG" ;;
 	e) ENUMALL=1 ;;
 	C) CYC_THRESH="$OPTARG" ;;
@@ -122,6 +123,7 @@ MTC_FREQ=${MTC_FREQ:-0}
 PSB_FREQ=${PSB_FREQ:-0}
 START=${START:-}
 STOP=${STOP:-}
+FORCE=${FORCE:-0}
 
 if [ "$KERNEL" != 1 -a "$COMM" = "" ] ; then
 	echo >&2 WARNING Using -K without a -c filter.
@@ -133,7 +135,7 @@ PATH=$PATH:$(dirname $0)
 [ -n "$DRIVER" ] && /sbin/rmmod simple_pt
 if ! lsmod | grep -q simple_pt ; then
 	if [ -r simple-pt.ko ] ; then
-		/sbin/insmod simple-pt.ko
+		/sbin/insmod simple-pt.ko force=$FORCE
 	else
 		/sbin/modprobe simple-pt
 	fi
@@ -146,6 +148,7 @@ fi
 echo $KERNEL > $C/kernel
 echo $USERMODE > $C/user
 echo $DISRETC > $C/dis_retc
+echo $FORCE > $C/force
 T=/sys/kernel/debug/tracing
 echo $TRACE > $T/events/pttp/msr/enable
 echo 1 > $T/events/pttp/exec_cr3/enable
