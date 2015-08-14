@@ -51,6 +51,8 @@ for l in arguments.trace:
     f = l.split()
     proc, cpu, flags, ts, tp = f[:5]
     ts = ts.replace(":", "")
+    if tp not in ("process_cr3:", "exec_cr3", "mmap_cr3:"):
+        continue
     args = dict([x.replace(",", "").split('=') for x in f[5:]])
     pid = 0
     if 'pid' in args:
