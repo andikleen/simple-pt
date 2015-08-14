@@ -130,6 +130,11 @@ if [ "$KERNEL" != 1 -a "$COMM" = "" ] ; then
 	echo >&2 WARNING Decoder will not be able to trace multiple processes.
 fi
 
+if [ "$EUID" -ne 0 ] ; then
+	echo >&2 sptcmd needs to run as root
+	exit 1
+fi
+
 PATH=$PATH:$(dirname $0)
 
 [ -n "$DRIVER" ] && /sbin/rmmod simple_pt
