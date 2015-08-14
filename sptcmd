@@ -10,38 +10,71 @@ The output files are in ptout.CPU and ptout.sideband
 When cmd has options please use -- to separate them from the sptcmd options.
 
 sptcmd [options] cmd
--c COMM  Set comm filter for comm (only trace that command)
--K disable kernel trace (default on)
--U disable user trace (default on)
--t enable msr trace in side band
--R disable return compression
--d Always reload driver
--N Don't dump data
--o PREFIX Dump to PREFIX.cpu and PREFIX.sideband (default ptout)
--e enumerate all processes in sideband (default unless -c is set)
+--comm COMM -c COMM  Set comm filter for comm (only trace that command)
+--no-kernel -K disable kernel trace (default on) (only use with --comm ...)
+--no-user   -U disable user trace (default on)
+--msr-trace -t enable msr trace in side band
+--disretc   -R disable return compression
+--reload    -d Always reload driver
+--dont-dump -N Don't dump data
+--prefix    -o PREFIX Dump to PREFIX.cpu and PREFIX.sideband (default ptout)
+--enumerate -e enumerate all processes in sideband (default unless -c is set)
+--force     -f Force initialization even when PT is already active (dangerous)
+
+--start-addr addr -s addr
+	       Start trace on CPU when kernel symbol start is hit. Can be address
+	       or sym+offset
+--stop-addr addr -y addr
+	      Stop trace on CPU when kernel symbol stop is hit. Can be address
+	      or sym+offset
 
 Following flags are not supported on Broadwell:
 
--C thresh Set cycle packet threshold to 2^(n-1) cycles for fine grained timing
--M freq	  Set MTC packet threshold to 2^(n-1)
--P freq	  Set PSB packet threshold to 2K^n bytes
--F start,end  Only trace between virtual address start-end. Can be kernel symbols.
+--cyc-thresh -C thresh    Set cycle packet threshold to 2^(n-1) cycles for fine grained timing
+--mtc-freq   -M freq	  Set MTC packet threshold to 2^(n-1)
+--psb-thresh -P thresh	  Set PSB packet threshold to 2K^n bytes
+--filter     -F start,end  Only trace between virtual address start-end. Can be kernel symbols.
 	      Two ranges allowed (shared with -S)
--S start,end  Stop trace when reaching virtual address start-end. Can be kernel
+--stop-range -S start,end  Stop trace when reaching virtual address start-end. Can be kernel
 	      symbols. Two ranges allowed (shared with -F)
--s start      Start trace on CPU when kernel symbol start is hit. Can be address              or sym+offset
--y stop	      Stop trace on CPU when kernel symbol stop is hit. Can be address
-              or sym+offset
 EOU
 }
 
 unset COMM KERNEL TRACE USERMODE DISRETC DRIVER DONTDUMP PREFIX ENUMALL
-unset CYC_THRESH MTC_FREQ PSB_FREQ FILTER TSTOP START STOP
+unset CYC_THRESH MTC_FREQ PSB_FREQ FILTER TSTOP START STOP FORCE
 declare -a RANGE_START RANGE_END
 NUM_RANGE=0
 ENUMDFL=1
 
-while getopts "c:KtURdNo:eC:M:P:F:S:s:y:" opt ; do
+declare -a ARGS
+ARGS=($@)
+
+for ((j = 0; j < $#; j++)) ; do
+	case "${ARGS[$j]}" in
+	--comm) ARGS[$j]=-c ;;
+	--no-kernel) ARGS[$j]=-K ;;
+	--no-user) ARGS[$j]=-U ;;
+	--msr-trace) ARGS[$j]=-t ;;
+	--disretc) ARGS[$j]=-R ;;
+	--reload) ARGS[$j]=-d ;;
+	--dont-dump) ARGS[$j]=-N ;;
+	--force) ARGS[$j]=-f ;;
+	--prefix) ARGS[$j]=-o ;;
+	--enum-all) ARGS[$j]=-e ;;
+	--cyc-thresh) ARGS[$j]=-C ;;
+	--mtc-freq) ARGS[$j]=-M ;;
+	--psb-thresh) ARGS[$j]=-P ;;
+	--filter) ARGS[$j]=-F ;;
+	--stop-range) ARGS[$j]=-S ;;
+	--start-addr) ARGS[$j]=-s ;;
+	--stop-addr) ARGS[$j]=-y ;;
+	--) ARGS[$j]=${ARGS[$j]};;
+	--*) usage ; exit 1 ;;
+	*) ARGS[$j]="${ARGS[$j]}" ;;
+	esac
+done
+
+while getopts "c:KtURfdNo:eC:M:P:F:S:s:y:" opt ${ARGS[@]} ; do
 	case "$opt" in
 	c) COMM="$OPTARG" ; ENUMDFL=0 ;;
 	K) KERNEL=0 ;;
