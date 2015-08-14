@@ -20,6 +20,7 @@ sptcmd [options] cmd
 --prefix    -o PREFIX Dump to PREFIX.cpu and PREFIX.sideband (default ptout)
 --enumerate -e enumerate all processes in sideband (default unless -c is set)
 --force     -f Force initialization even when PT is already active (dangerous)
+--keep	    -k Keep kernel trace points running after end.
 
 --start-addr addr -s addr
 	       Start trace on CPU when kernel symbol start is hit. Can be address
@@ -41,7 +42,7 @@ EOU
 }
 
 unset COMM KERNEL TRACE USERMODE DISRETC DRIVER DONTDUMP PREFIX ENUMALL
-unset CYC_THRESH MTC_FREQ PSB_FREQ FILTER TSTOP START STOP FORCE
+unset CYC_THRESH MTC_FREQ PSB_FREQ FILTER TSTOP START STOP FORCE KEEP
 declare -a RANGE_START RANGE_END
 NUM_RANGE=0
 ENUMDFL=1
@@ -66,6 +67,7 @@ for ((j = 0; j < $#; j++)) ; do
 	--force) ARGS[$j]=-f ;;
 	--prefix) ARGS[$j]=-o ;;
 	--enum-all) ARGS[$j]=-e ;;
+	--keep) ARGS[$j]=-k ;;
 	--cyc-thresh) ARGS[$j]=-C ;;
 	--mtc-freq) ARGS[$j]=-M ;;
 	--psb-thresh) ARGS[$j]=-P ;;
@@ -79,7 +81,7 @@ for ((j = 0; j < $#; j++)) ; do
 	esac
 done
 
-while getopts "c:KtURfdNo:eC:M:P:F:S:s:y:" opt ${ARGS[@]} ; do
+while getopts "c:KtURkfdNo:eC:M:P:F:S:s:y:" opt ${ARGS[@]} ; do
 	case "$opt" in
 	c) COMM="$OPTARG" ; ENUMDFL=0 ;;
 	K) KERNEL=0 ;;
@@ -91,6 +93,7 @@ while getopts "c:KtURfdNo:eC:M:P:F:S:s:y:" opt ${ARGS[@]} ; do
 	f) FORCE=1 ;;
 	o) PREFIX="$OPTARG" ;;
 	e) ENUMALL=1 ;;
+	k) KEEP=1 ;;
 	C) CYC_THRESH="$OPTARG" ;;
 	M) MTC_FREQ="$OPTARG" ;;
 	P) PSB_FREQ="$OPTARG" ;;
@@ -129,6 +132,7 @@ PSB_FREQ=${PSB_FREQ:-0}
 START=${START:-}
 STOP=${STOP:-}
 FORCE=${FORCE:-0}
+KEEP=${KEEP:-}
 
 if [ "$KERNEL" != 1 -a "$COMM" = "" ] ; then
 	echo >&2 WARNING Using -K without a -c filter.
@@ -189,10 +193,12 @@ fi
 echo 1 > $C/start
 "$@"
 echo 0 > $C/start
-echo 0 > $T/events/pttp/exec_cr3/enable
-echo 0 > $T/events/pttp/mmap_cr3/enable
-echo 0 > $T/events/pttp/process_cr3/enable
-echo 0 > $T/events/pttp/msr/enable
+if [ -z "$KEEP" ] ; then
+	echo 0 > $T/events/pttp/exec_cr3/enable
+	echo 0 > $T/events/pttp/mmap_cr3/enable
+	echo 0 > $T/events/pttp/process_cr3/enable
+	echo 0 > $T/events/pttp/msr/enable
+fi
 if [ -z "$DONTDUMP" ] ; then
 	sptdump $PREFIX
 
