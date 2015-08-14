@@ -85,15 +85,26 @@ sptdecode then decodes the trace for a CPU using the side band information.
 When it should decode kernel code it needs to run as root to be able to
 read /proc/kcore. If it's not run as root kernel code will not be shown.
 
-Notes
+Run test suite
+
+	sudo ./tester
+
+# Notes
 
 	* To limit the program to one pcu use sptcmd taskset -c CPU ..
 	* To demangle C++ symbols pipe output through c++filt
-
-Limitations:
+	* To start/stop around specific user code bracket it with dummy syscalls that you
+	  can then put a kernel trigger on. The test suite uses personality(12341234) and prctl(12341234).
+	  This will be improved in the future.
+	* perf or the BIOS may be already using the PT hardware. If you know it's safe you can take
+over the PT hardware with --force -d.
+# Limitations:
 
 	* When kernel tracing is disabled (-K) multiple processes cannot be distinguished by the decoder.
-	
+
+	* Enabling/Disabling tracing causes the kernel to modify itself, which can cause the PT decoder
+to lose synchronization. sptcmd disables trace points. Use -k
+
 	* sptcmd does not continuously save side band data, so events at the beginning
 of a trace may not be saved. For complex workloads it may be needed to increase the trace buffers 
 in /sys/kernel/debug/tracing/buffer_size_kb
