@@ -416,7 +416,9 @@ void usage(void)
 	fprintf(stderr, "-s/--sideband log  Load side band log. Needs access to binaries\n");
 	fprintf(stderr, "--freq/-f freq   Use frequency to convert time stamps (Ghz). cur for current system.\n");
 	fprintf(stderr, "--insn/-i        dump instruction bytes\n");
+#if 0 /* needs more debugging */
 	fprintf(stderr, "--loop/-l	  detect loops\n");
+#endif
 	fprintf(stderr, "--cpu/-c cpuname cpu that collected the trace (in family/model/stepping)\n");
 	exit(1);
 }
