@@ -153,7 +153,7 @@ static int symbol_set(const char *val, const struct kernel_param *kp)
 		}
 		addr = kallsyms_lookup_name(sym);
 		if (!addr)
-			pr_err("Lookup of %s symbol failed\n", sym);
+			pr_err("Lookup of '%s' symbol failed\n", sym);
 		if (addr && offset)
 			addr += offset;
 		if (addr) {
