@@ -74,7 +74,7 @@ struct sym *findsym(unsigned long val, unsigned long cr3)
 	/* add last hit cache here */
 
 	for (st = symtabs; st; st = st->next) {
-		if (st->cr3 && cr3 != st->cr3)
+		if (st->cr3 && cr3 && cr3 != st->cr3)
 			continue;
 		if (val < st->base || val >= st->end)
 			continue;
