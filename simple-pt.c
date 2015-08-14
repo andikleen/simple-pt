@@ -320,6 +320,9 @@ MODULE_PARM_DESC(trace_stop, "Stop trace when reaching kernel address. Can be ke
 static unsigned long trace_start;
 module_param_cb(trace_start, &trace_start_ops, &trace_start, 0644);
 MODULE_PARM_DESC(trace_start, "Start trace when reaching kernel address. Can be kernel symbol+offset or 0 to disable");
+static bool force = false;
+module_param(force, bool, 0644);
+MODULE_PARM_DESC(force, "Force PT initialization even when already active");
 
 static DEFINE_MUTEX(restart_mutex);
 
@@ -502,46 +505,35 @@ static void simple_pt_init_msrs(void)
 	pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
 }
 
-static void simple_pt_cpu_init(void *arg)
+static int simple_pt_buffer_init(int cpu)
 {
-	int cpu = smp_processor_id();
-	u64 *topa;
 	unsigned long pt_buffer;
-	u64 ctl;
-
-	/* check for pt already active */
-	if (pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &ctl) == 0 && (ctl & TRACE_EN)) {
-		pr_err("cpu %d, PT already active\n", cpu);
-		pt_error = -EBUSY;
-		return;
-	}
+	u64 *topa;
 
 	/* allocate buffer */
-	pt_buffer = __this_cpu_read(pt_buffer_cpu);
+	pt_buffer = per_cpu(pt_buffer_cpu, cpu);
 	if (!pt_buffer) {
 		pt_buffer = __get_free_pages(GFP_KERNEL|__GFP_NOWARN|__GFP_ZERO, pt_buffer_order);
 		if (!pt_buffer) {
 			pr_err("cpu %d, Cannot allocate %ld KB buffer\n", cpu,
 					(PAGE_SIZE << pt_buffer_order) / 1024);
-			pt_error = -ENOMEM;
-			return;
+			return -ENOMEM;
 		}
-		__this_cpu_write(pt_buffer_cpu, pt_buffer);
+		per_cpu(pt_buffer_cpu, cpu) = pt_buffer;
 	}
 
 	if (!single_range) {
 		/* allocate topa */
-		topa = __this_cpu_read(topa_cpu);
+		topa = per_cpu(topa_cpu, cpu);
 		if (!topa) {
 			int n;
 
 			topa = (u64 *)__get_free_page(GFP_KERNEL|__GFP_ZERO);
 			if (!topa) {
 				pr_err("cpu %d, Cannot allocate topa page\n", cpu);
-				pt_error = -ENOMEM;
 				goto out_pt_buffer;
 			}
-			__this_cpu_write(topa_cpu, topa);
+			per_cpu(topa_cpu, cpu) = topa;
 
 			/* create circular single entry topa table */
 			n = 0;
@@ -561,14 +553,31 @@ static void simple_pt_cpu_init(void *arg)
 			topa[n] = (u64)__pa(topa) | TOPA_END; /* circular buffer */
 		}
 	}
-	simple_pt_init_msrs();
-	return;
+	return 0;
 
 out_pt_buffer:
 	free_pages(pt_buffer, pt_buffer_order);
-	__this_cpu_write(pt_buffer_cpu, 0);
+	per_cpu(pt_buffer_cpu, cpu) = 0;
+	return -ENOMEM;
 }
 
+static void simple_pt_cpu_init(void *arg)
+{
+	int cpu = smp_processor_id();
+	u64 ctl;
+
+	/* check for pt already active */
+	if (pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &ctl) == 0 && (ctl & TRACE_EN)) {
+		if (!force) {
+			pr_err("cpu %d, PT already active\n", cpu);
+			pt_error = -EBUSY;
+			return;
+		}
+		pr_info("forcibly taking over PT on %d\n", cpu);
+	}
+
+	simple_pt_init_msrs();
+}
 
 static int simple_pt_mmap(struct file *file, struct vm_area_struct *vma)
 {
@@ -799,6 +808,7 @@ static int simple_pt_init(void)
 	unsigned a, b, c, d;
 	unsigned a1, b1, c1, d1;
 	int err;
+	int cpu;
 
 	/* check cpuid */
 	cpuid_count(0x07, 0, &a, &b, &c, &d);
@@ -833,13 +843,19 @@ static int simple_pt_init(void)
 	}
 
 	get_online_cpus();
+	for_each_online_cpu (cpu) {
+		err = simple_pt_buffer_init(cpu);
+		if (err)
+			goto out_buffers;
+	}
+
 	on_each_cpu(simple_pt_cpu_init, NULL, 1);
 	register_cpu_notifier(&cpu_notifier);
 	put_online_cpus();
 	if (pt_error) {
 		pr_err("PT initialization failed\n");
 		err = pt_error;
-		goto out_buffers;
+		goto out_buffers2;
 	}
 
 	/* Trace exec->cr3 */
@@ -861,11 +877,11 @@ static int simple_pt_init(void)
 	if (start)
 		restart();
 
-	pr_info("%s with %ld KB buffer\n",
-				start ? "running" : "loaded",
-				(PAGE_SIZE << pt_buffer_order) / 1024);
+	pr_info("%s\n", start ? "running" : "loaded");
 	return 0;
 
+out_buffers2:
+	unregister_cpu_notifier(&cpu_notifier);
 out_buffers:
 	free_all_buffers();
 	misc_deregister(&simple_pt_miscdev);
