@@ -129,8 +129,8 @@ ENUMALL=${ENUMALL:-$ENUMDFL}
 CYC_THRESH=${CYC_THRESH:-0}
 MTC_FREQ=${MTC_FREQ:-0}
 PSB_FREQ=${PSB_FREQ:-0}
-START=${START:-}
-STOP=${STOP:-}
+START=${START:-0}
+STOP=${STOP:-0}
 FORCE=${FORCE:-0}
 KEEP=${KEEP:-}
 
@@ -176,12 +176,8 @@ for (( r = 0; r < NUM_RANGE; r++ )) ; do
 	echo $RANGE_END[$r] > $C/addr${r}_end
 	echo $RANGE_CFG[$r] > $C/addr${r}_cfg
 done
-if [ "$START" != "" ] ; then
-	echo $START > $C/trace_start
-fi
-if [ "$STOP" != "" ] ; then
-	echo $STOP > $C/trace_stop
-fi
+echo $START > $C/trace_start
+echo $STOP > $C/trace_stop
 echo > $T/trace
 echo $ENUMALL > $C/enumerate_all
 if [ "$ENUMALL" != 0 ] ; then
