@@ -49,7 +49,12 @@ ENUMDFL=1
 declare -a ARGS
 ARGS=($@)
 
+B=0
 for ((j = 0; j < $#; j++)) ; do
+	if [ $B -ne 0 ] ; then
+		ARGS[$j]=${ARGS[$j]}
+		continue
+	fi
 	case "${ARGS[$j]}" in
 	--comm) ARGS[$j]=-c ;;
 	--no-kernel) ARGS[$j]=-K ;;
@@ -68,7 +73,7 @@ for ((j = 0; j < $#; j++)) ; do
 	--stop-range) ARGS[$j]=-S ;;
 	--start-addr) ARGS[$j]=-s ;;
 	--stop-addr) ARGS[$j]=-y ;;
-	--) ARGS[$j]=${ARGS[$j]};;
+	--) ARGS[$j]=${ARGS[$j]}; B=1 ;;
 	--*) usage ; exit 1 ;;
 	*) ARGS[$j]="${ARGS[$j]}" ;;
 	esac
