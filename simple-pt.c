@@ -186,6 +186,9 @@ static struct kernel_param_ops addr_ops = {
 };
 
 /* Protects start/stop_kprobe_set and the kprobes */
+/* If you are porting this driver this code is all optional and can be
+ * removed.
+ */
 static DEFINE_MUTEX(kprobe_mutex);
 
 static int probe_start(struct kprobe *kp, struct pt_regs *regs);
@@ -803,12 +806,10 @@ static struct syscore_ops simple_pt_syscore = {
 
 static void free_all_buffers(void);
 
-static int simple_pt_init(void)
+static int simple_pt_cpuid(void)
 {
 	unsigned a, b, c, d;
 	unsigned a1, b1, c1, d1;
-	int err;
-	int cpu;
 
 	/* check cpuid */
 	cpuid_count(0x07, 0, &a, &b, &c, &d);
@@ -835,6 +836,17 @@ static int simple_pt_init(void)
 		psb_freq_mask = (b1 >> 16) & 0xffff;
 		addr_range_num = a1 & 0x3;
 	}
+	return 0;
+}
+
+static int simple_pt_init(void)
+{
+	int err;
+	int cpu;
+
+	err = simple_pt_cpuid();
+	if (err < 0)
+		return err;
 
 	err = misc_register(&simple_pt_miscdev);
 	if (err < 0) {
@@ -869,8 +881,10 @@ static int simple_pt_init(void)
 		/* Ignore error */
 	}
 
+	/* Optional code */
 	atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
 
+	/* suspend/resume hooks. */
 	register_syscore_ops(&simple_pt_syscore);
 
 	initialized = true;
