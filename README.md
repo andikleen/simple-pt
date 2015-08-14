@@ -63,10 +63,15 @@ Build the user tools
 
 	make user
 
-Run test
+Run trace
 
 	sudo ./sptcmd -c ls ls
 	sudo ./sptdecode --sideband ptout.sideband --pt ptout.0 | less
+
+Measure whole system for 1 second
+
+	sudo ./sptcode sleep 1
+
 	
 sptcmd loads and configures the kernel driver. It runs a program with trace. It always 
 does a global trace. It writes the pt trace data to trace files for each CPU
@@ -77,7 +82,12 @@ to decode the trace into the ptout.sideband file.
 everything global is traced.
 
 sptdecode then decodes the trace for a CPU using the side band information.
-When it should decode kernel code it needs to run 
+When it should decode kernel code it needs to run as root to be able to
+read /proc/kcore. If it's not run as root kernel code will not be shown.
+
+Notes
+
+	* To demangle C++ symbols pipe output through c++filt
 
 Limitations:
 
