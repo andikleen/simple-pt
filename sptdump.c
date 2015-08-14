@@ -91,6 +91,8 @@ int main(int ac, char **av)
 		len += write(fd, pbuf[i], offset);
 		printf("cpu %d offset %u, %u KB, writing to %s\n", i, offset, len >> 10, fn);
 		close(fd);
+		if (len == 0)
+			unlink(fn);
 	}
 
 	return 0;
