@@ -1,0 +1,34 @@
+#!/bin/bash
+# sudo ptregs [cpu]
+# dump PT registers
+# requires msr-tools
+
+CPU=""
+
+reg() {
+	printf %-30s $1
+	rdmsr -c0 -p $CPU $2
+}
+
+all() {
+echo "CPU $CPU"
+reg RTIT_OUTPUT_BASE 0x560
+reg RTIT_OUTPUT_MASK_PTRS 0x561
+reg RTIT_CTL	0x570
+reg RTIT_STATUS 0x571 
+reg CR3_MATCH	0x572
+}
+
+if [ "$1" != "" ] ; then
+	for j in "$@" ; do
+		CPU=$1
+		all
+	done
+else
+	for j in /sys/devices/system/cpu/cpu[0-9]* ; do
+		CPU=$(basename $j)
+		CPU=${CPU/cpu/}
+		all
+	done
+fi
+
