@@ -87,6 +87,7 @@ read /proc/kcore. If it's not run as root kernel code will not be shown.
 
 Notes
 
+	* To limit the program to one pcu use sptcmd taskset -c CPU ..
 	* To demangle C++ symbols pipe output through c++filt
 
 Limitations:
