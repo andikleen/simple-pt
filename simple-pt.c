@@ -137,10 +137,23 @@ static int symbol_set(const char *val, const struct kernel_param *kp)
 		char sym[128];
 		unsigned offset = 0;
 		unsigned long addr;
+		char *plus, *nl;
 
-		sym[0] = 0;
-		sscanf(val, "%128[^+]+%u", sym, &offset);
+		snprintf(sym, 128, "%s", val);
+		nl = strchr(sym, '\n');
+		if (nl)
+			*nl = 0;
+		plus = strchr(sym, '+');
+		if (plus) {
+			*plus = 0;
+			if (kstrtouint(plus + 1, 0, &offset) < 0) {
+				pr_err("Invalid offset\n");
+				return -EIO;
+			}
+		}
 		addr = kallsyms_lookup_name(sym);
+		if (!addr)
+			pr_err("Lookup of %s symbol failed\n", sym);
 		if (addr && offset)
 			addr += offset;
 		if (addr) {
@@ -198,7 +211,9 @@ static int kprobe_set(const char *val, const struct kernel_param *kp,
 	}
 	if (addr) {
 		kprobe->addr = (kprobe_opcode_t *)addr;
-		register_kprobe(kprobe);
+		ret = register_kprobe(kprobe);
+		if (ret)
+			pr_err("registering kprobe failed\n");
 	}
 	mutex_unlock(&kprobe_mutex);
 
@@ -300,10 +315,10 @@ static unsigned addr1_cfg;
 module_param_cb(addr1_cfg, &resync_ops, &addr1_cfg, 0644);
 MODULE_PARM_DESC(addr1_end, "Mode of address range 1: 0 = off, 1 = filter, 2 = trace-stop (if supported)");
 static unsigned long trace_stop;
-module_param_cb(trace_stop, &trace_start_ops, &trace_stop, 0644);
+module_param_cb(trace_stop, &trace_stop_ops, &trace_stop, 0644);
 MODULE_PARM_DESC(trace_stop, "Stop trace when reaching kernel address. Can be kernel symbol+offset or 0 to disable");
 static unsigned long trace_start;
-module_param_cb(trace_start, &trace_stop_ops, &trace_start, 0644);
+module_param_cb(trace_start, &trace_start_ops, &trace_start, 0644);
 MODULE_PARM_DESC(trace_start, "Start trace when reaching kernel address. Can be kernel symbol+offset or 0 to disable");
 
 static DEFINE_MUTEX(restart_mutex);
