@@ -31,9 +31,9 @@ sptcmd [options] cmd
 
 Following flags are not supported on Broadwell:
 
---cyc-thresh -C thresh    Set cycle packet threshold to 2^(n-1) cycles for fine grained timing
---mtc-freq   -M freq	  Set MTC packet threshold to 2^(n-1)
---psb-thresh -P thresh	  Set PSB packet threshold to 2K^n bytes
+--cyc thresh -C thresh    Set cycle packet threshold to 2^(n-1) cycles for fine grained timing
+--mtc freq   -M freq	  Set MTC packet threshold to 2^(n-1)
+--psb freq   -P thresh	  Set PSB packet threshold to 2K^n bytes
 --filter     -F start,end  Only trace between virtual address start-end. Can be kernel symbols.
 	      Two ranges allowed (shared with -S)
 --stop-range -S start,end  Stop trace when reaching virtual address start-end. Can be kernel
@@ -68,9 +68,9 @@ for ((j = 0; j < $#; j++)) ; do
 	--prefix) ARGS[$j]=-o ;;
 	--enum-all) ARGS[$j]=-e ;;
 	--keep) ARGS[$j]=-k ;;
-	--cyc-thresh) ARGS[$j]=-C ;;
-	--mtc-freq) ARGS[$j]=-M ;;
-	--psb-thresh) ARGS[$j]=-P ;;
+	--cyc) ARGS[$j]=-C ;;
+	--mtc) ARGS[$j]=-M ;;
+	--psb) ARGS[$j]=-P ;;
 	--filter) ARGS[$j]=-F ;;
 	--stop-range) ARGS[$j]=-S ;;
 	--start-addr) ARGS[$j]=-s ;;
