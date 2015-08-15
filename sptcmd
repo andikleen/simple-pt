@@ -43,8 +43,9 @@ EOU
 
 unset COMM KERNEL TRACE USERMODE DISRETC DRIVER DONTDUMP PREFIX ENUMALL
 unset CYC_THRESH MTC_FREQ PSB_FREQ FILTER TSTOP START STOP FORCE KEEP
-declare -a RANGE_START RANGE_END
+declare -a RANGE_START RANGE_END RANGE_CFG
 NUM_RANGE=0
+MAX_RANGE=2
 ENUMDFL=1
 
 declare -a ARGS
@@ -175,6 +176,9 @@ for (( r = 0; r < NUM_RANGE; r++ )) ; do
 	echo ${RANGE_START[$r]} > $C/addr${r}_start
 	echo ${RANGE_END[$r]} > $C/addr${r}_end
 	echo ${RANGE_CFG[$r]} > $C/addr${r}_cfg
+done
+for (( ; r < MAX_RANGE; r++ )) ; do
+	echo 0 > $C/addr${r}_cfg
 done
 echo $START > $C/trace_start
 echo $STOP > $C/trace_stop

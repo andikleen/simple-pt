@@ -104,7 +104,8 @@ over the PT hardware with --force -d.
 	* When kernel tracing is disabled (-K) multiple processes cannot be distinguished by the decoder.
 
 	* Enabling/Disabling tracing causes the kernel to modify itself, which can cause the PT decoder
-to lose synchronization. sptcmd disables trace points. Use -k
+to lose synchronization. sptcmd disables trace points. Use -k when needed. This can sometimes affect the
+test suite.
 
 	* sptcmd does not continuously save side band data, so events at the beginning
 of a trace may not be saved. For complex workloads it may be needed to increase the trace buffers 

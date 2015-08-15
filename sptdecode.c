@@ -90,12 +90,14 @@ static void print_ev(char *name, struct sinsn *insn)
 
 static void print_event(struct sinsn *insn)
 {
+#if 0 /* Until these flags are reliable in libipt... */
 	if (insn->disabled)
 		print_ev("disabled", insn);
 	if (insn->enabled)
 		print_ev("enabled", insn);
 	if (insn->resumed)
 		print_ev("resumed", insn);
+#endif
 	if (insn->interrupted)
 		print_ev("interrupted", insn);
 	if (insn->resynced)
@@ -373,7 +375,9 @@ static int decode(struct pt_insn_decoder *decoder)
 					insncnt = 1;
 					sic++;
 					transfer_events(si, &insn);
-				} else if (insn.iclass == ptic_return || insn.iclass == ptic_far_return || si->ts) {
+				} else if (insn.iclass == ptic_return || insn.iclass == ptic_far_return || si->ts ||
+						insn.enabled || insn.disabled || insn.resumed || insn.interrupted ||
+						insn.resynced || insn.stopped || insn.aborted) {
 					si->ip = insn.ip;
 					si->insn_delta = insncnt;
 					insncnt = 0;
