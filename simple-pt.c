@@ -951,15 +951,15 @@ static void free_all_buffers(void)
 
 static void simple_pt_exit(void)
 {
+	if (start_kprobe.addr)
+		unregister_kprobe(&start_kprobe);
+	if (stop_kprobe.addr)
+		unregister_kprobe(&stop_kprobe);
 	on_each_cpu(stop_pt, NULL, 1);
 	free_all_buffers();
 	misc_deregister(&simple_pt_miscdev);
 	compat_unregister_trace_sched_process_exec(probe_sched_process_exec, NULL);
 	unregister_kprobe(&mmap_kp);
-	if (start_kprobe.addr)
-		unregister_kprobe(&start_kprobe);
-	if (stop_kprobe.addr)
-		unregister_kprobe(&stop_kprobe);
 	atomic_notifier_chain_unregister(&panic_notifier_list, &panic_notifier);
 	unregister_syscore_ops(&simple_pt_syscore);
 	unregister_cpu_notifier(&cpu_notifier);
