@@ -351,14 +351,6 @@ static inline int pt_rdmsrl_safe(unsigned msr, u64 *val)
 	return ret;
 }
 
-static u64 rtit_status(void)
-{
-	u64 status;
-	if (pt_rdmsrl_safe(MSR_IA32_RTIT_STATUS, &status) < 0)
-		return 0;
-	return status;
-}
-
 static void init_mask_ptrs(void)
 {
 	if (single_range)
@@ -438,29 +430,13 @@ static void do_start_pt(void *arg)
 		pr_err("cpu %d, RTIT_CTL enable failed\n", cpu);
 }
 
-static void check_status(char *msg)
-{
-	int cpu = smp_processor_id();
-	u64 status = rtit_status();
-	if (status) {
-		u64 ctl = 0;
-		pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &ctl);
-		pr_info("cpu %d, rtit status %llx, ctl %llx %s\n", cpu, status,
-				ctl, msg);
-	}
-}
-
 static void stop_pt(void *arg)
 {
 	u64 offset;
 
-	if (!__this_cpu_read(pt_running)) {
-		check_status("when not running");
+	if (!__this_cpu_read(pt_running))
 		return;
-	}
 	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, 0LL);
-	check_status("after stopping");
-
 	pt_rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
 	__this_cpu_write(pt_offset, offset >> 32);
 	__this_cpu_write(pt_running, false);
