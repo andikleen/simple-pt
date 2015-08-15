@@ -585,6 +585,20 @@ out_pt_buffer:
 	return -ENOMEM;
 }
 
+static unsigned topa_entries(int cpu)
+{
+	u64 *topa = per_cpu(topa_cpu, cpu);
+	int n;
+
+	if (single_range)
+		return 1;
+	if (!topa)
+		return 0;
+	for (n = 0; !(topa[n] & TOPA_END); n++)
+		;
+	return n;
+}
+
 static void simple_pt_cpu_init(void *arg)
 {
 	int cpu = smp_processor_id();
@@ -603,12 +617,21 @@ static void simple_pt_cpu_init(void *arg)
 	simple_pt_init_msrs();
 }
 
+static inline int file_get_cpu(struct file *file)
+{
+	return (long)file->private_data;
+}
+
 static int simple_pt_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	unsigned long len = vma->vm_end - vma->vm_start;
-	int cpu = (int)(long)file->private_data;
+	int cpu = file_get_cpu(file);
+	unsigned num = topa_entries(cpu);
+	int i, err;
+	u64 *topa;
+	unsigned long buffer_size = PAGE_SIZE << pt_buffer_order;
 
-	if (len % PAGE_SIZE || len != (PAGE_SIZE << pt_buffer_order) || vma->vm_pgoff)
+	if (len % PAGE_SIZE || len != num * buffer_size || vma->vm_pgoff)
 		return -EINVAL;
 
 	if (vma->vm_flags & VM_WRITE)
@@ -617,10 +640,24 @@ static int simple_pt_mmap(struct file *file, struct vm_area_struct *vma)
 	if (!cpu_online(cpu))
 		return -EIO;
 
-	return remap_pfn_range(vma, vma->vm_start,
+	if (num <= 1) {
+		return remap_pfn_range(vma, vma->vm_start,
 			       __pa(per_cpu(pt_buffer_cpu, cpu)) >> PAGE_SHIFT,
-			       PAGE_SIZE << pt_buffer_order,
+			       buffer_size,
 			       vma->vm_page_prot);
+	}
+	topa = per_cpu(topa_cpu, cpu);
+	err = 0;
+	for (i = 0; i < num; i++) {
+		err = remap_pfn_range(vma,
+				vma->vm_start + i*buffer_size,
+				topa[i] >> PAGE_SHIFT,
+				buffer_size,
+				vma->vm_page_prot);
+		if (err)
+			break;
+	}
+	return err;
 }
 
 static long simple_pt_ioctl(struct file *file, unsigned int cmd,
@@ -634,16 +671,19 @@ static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 		file->private_data = (void *)cpu;
 		return 0;
 	}
-	case SIMPLE_PT_GET_SIZE:
-		return put_user(PAGE_SIZE << pt_buffer_order, (int *)arg);
+	case SIMPLE_PT_GET_SIZE: {
+		int num = topa_entries(file_get_cpu(file));
+		return put_user(num * (PAGE_SIZE << pt_buffer_order),
+				(int *)arg);
+	}
 	case SIMPLE_PT_GET_OFFSET: {
 		unsigned offset;
 		int ret = 0;
 		mutex_lock(&restart_mutex);
-		if (per_cpu(pt_running, (long)file->private_data))
+		if (per_cpu(pt_running, file_get_cpu(file)))
 			ret = -EIO;
 		else
-			offset = per_cpu(pt_offset, (long)file->private_data);
+			offset = per_cpu(pt_offset, file_get_cpu(file));
 		mutex_unlock(&restart_mutex);
 		if (!ret)
 			ret = put_user(offset, (int *)arg);
@@ -932,10 +972,10 @@ static void free_topa(u64 *topa)
 	int j;
 
 	for (j = 1; j < pt_num_buffers; j++) {
-		if (!(topa[j] & TOPA_END))
-			free_pages((unsigned long)__va(topa[j] &
-				~(u64)(pt_buffer_order << TOPA_SIZE_SHIFT)),
-					pt_buffer_order);
+		if (topa[j] & TOPA_END)
+			break;
+		free_pages((unsigned long)__va(topa[j] & PAGE_MASK),
+				pt_buffer_order);
 	}
 }
 
