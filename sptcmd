@@ -172,9 +172,9 @@ echo $MTC_FREQ > $C/mtc_freq
 echo $CYC_THRESH > $C/cyc_thresh
 echo $PSB_FREQ > $C/psb_freq
 for (( r = 0; r < NUM_RANGE; r++ )) ; do
-	echo $RANGE_START[$r] > $C/addr${r}_start
-	echo $RANGE_END[$r] > $C/addr${r}_end
-	echo $RANGE_CFG[$r] > $C/addr${r}_cfg
+	echo ${RANGE_START[$r]} > $C/addr${r}_start
+	echo ${RANGE_END[$r]} > $C/addr${r}_end
+	echo ${RANGE_CFG[$r]} > $C/addr${r}_cfg
 done
 echo $START > $C/trace_start
 echo $STOP > $C/trace_stop
