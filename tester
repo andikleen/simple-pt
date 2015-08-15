@@ -46,6 +46,10 @@ if ./ptfeature filter ; then
 	grep -v -q write stest.out
 fi
 
+if ./ptfeature stop ; then
+	run --stop-range $MAIN,$FINI -c loop
+fi
+
 set +x
 trap "" ERR 0
 
