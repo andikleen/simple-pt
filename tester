@@ -34,7 +34,9 @@ run --disretc --msr-trace --no-user
 grep -q page_fault stest.out
 run --no-kernel -c loop
 grep -q  __libc_start_main.*main stest.out
+grep -v -q page_fault stest.out
 run --start-addr SyS_prctl --stop-addr SyS_personality 
+grep -q main stest.out
 
 # SKL
 
