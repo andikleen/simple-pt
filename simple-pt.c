@@ -435,19 +435,28 @@ static void do_start_pt(void *arg)
 		pr_err("cpu %d, RTIT_CTL enable failed\n", cpu);
 }
 
+static void check_status(char *msg)
+{
+	int cpu = smp_processor_id();
+	u64 status = rtit_status();
+	if (status) {
+		u64 ctl = 0;
+		pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &ctl);
+		pr_info("cpu %d, rtit status %llx, ctl %llx %s\n", cpu, status,
+				ctl, msg);
+	}
+}
+
 static void stop_pt(void *arg)
 {
 	u64 offset;
-	u64 status;
-	int cpu = smp_processor_id();
 
-	if (!__this_cpu_read(pt_running))
+	if (!__this_cpu_read(pt_running)) {
+		check_status("when not running");
 		return;
+	}
 	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, 0LL);
-	status = rtit_status();
-	if (status)
-		pr_info("cpu %d, rtit status %llx after stopping\n", cpu, status);
-	__this_cpu_write(pt_running, false);
+	check_status("after stopping");
 
 	pt_rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
 	__this_cpu_write(pt_offset, offset >> 32);
@@ -578,11 +587,11 @@ static void simple_pt_cpu_init(void *arg)
 	/* check for pt already active */
 	if (pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &ctl) == 0 && (ctl & TRACE_EN)) {
 		if (!force) {
-			pr_err("cpu %d, PT already active\n", cpu);
+			pr_err("cpu %d, PT already active: %llx\n", cpu, ctl);
 			pt_error = -EBUSY;
 			return;
 		}
-		pr_info("forcibly taking over PT on %d\n", cpu);
+		pr_info("forcibly taking over PT on %d: %llx\n", cpu, ctl);
 	}
 
 	simple_pt_init_msrs();
