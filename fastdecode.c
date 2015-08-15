@@ -305,7 +305,7 @@ void decode_buffer(unsigned char *map, size_t len)
 			if ((*p & 3) == 3) { /* CYC */
 				u64 cyc = *p >> 2;
 				unsigned shift = 4;
-				if (*p & 4 && LEFT(1)) {
+				if ((*p & 4) && LEFT(1)) {
 					do {
 						p++;
 						cyc |= (*p >> 1) << shift;
@@ -313,6 +313,8 @@ void decode_buffer(unsigned char *map, size_t len)
 					} while ((*p & 1) && LEFT(1));
 				}
 				printf("cyc\t%llu\n", cyc);
+				p++;
+				continue;
 			}
 
 			print_unknown(p, end, map);
