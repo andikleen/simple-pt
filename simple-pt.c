@@ -451,9 +451,14 @@ static void do_start_pt(void *arg)
 static void stop_pt(void *arg)
 {
 	u64 offset;
+	u64 val;
 
 	if (!__this_cpu_read(pt_running))
 		return;
+	pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val);
+	if (!(val & TRACE_EN))
+		pr_info("cpu %d, trace was not enabled on stop, ctl %llx\n",
+				smp_processor_id(), val);
 	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, 0LL);
 	pt_rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
 	__this_cpu_write(pt_offset, offset >> 32);
