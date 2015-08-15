@@ -200,6 +200,10 @@ if [ -z "$DONTDUMP" ] ; then
 
 	sptsideband.py $T/trace ${PREFIX}.maps > ${PREFIX}.sideband
 
+	if [ "$TRACE" != 0 ] ; then
+		cat $T/trace > ${PREFIX}.trace
+	fi
+
 	#if [ -r /boot/vmlinux-$(uname -r) ] ; then
 	#	echo -e "0.0 0 0 0\t/boot/vmlinux-$(uname -r)" >> ${PREFIX}.sideband
 	#elif [ -r /lib/modules/$(uname -r)/build/vmlinux ] ; then
