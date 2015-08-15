@@ -76,6 +76,7 @@
 #define CYC_EN		BIT_ULL(1)
 #define CTL_OS		BIT_ULL(2)
 #define CTL_USER	BIT_ULL(3)
+#define PT_ERROR	BIT_ULL(4)
 #define CR3_FILTER	BIT_ULL(7)
 #define TO_PA		BIT_ULL(8)
 #define MTC_EN		BIT_ULL(9)
@@ -458,7 +459,11 @@ static void stop_pt(void *arg)
 	pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val);
 	if (!(val & TRACE_EN))
 		pr_info("cpu %d, trace was not enabled on stop, ctl %llx\n",
-				smp_processor_id(), val);
+				raw_smp_processor_id(), val);
+	pt_rdmsrl_safe(MSR_IA32_RTIT_STATUS, &val);
+	if (val & PT_ERROR)
+		pr_info("cpu %d, error happened: status %llx\n",
+				raw_smp_processor_id(), val);
 	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, 0LL);
 	pt_rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
 	__this_cpu_write(pt_offset, offset >> 32);
