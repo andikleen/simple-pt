@@ -90,12 +90,14 @@ static void print_ev(char *name, struct sinsn *insn)
 
 static void print_event(struct sinsn *insn)
 {
+#if 0 /* Until these flags are reliable in libipt... */
 	if (insn->disabled)
 		print_ev("disabled", insn);
 	if (insn->enabled)
 		print_ev("enabled", insn);
 	if (insn->resumed)
 		print_ev("resumed", insn);
+#endif
 	if (insn->interrupted)
 		print_ev("interrupted", insn);
 	if (insn->resynced)
