@@ -34,7 +34,7 @@ int main(int ac, char **av)
 		addr_cfg_max = 2;
 	a1 = b1 = c1 = d1 = 0;
 	if (a >= 1)
-		__cpuid_count(0x07, 1, a1, b1, c1, d1);
+		__cpuid_count(0x14, 1, a1, b1, c1, d1);
 	if (b & BIT(1)) {
 		mtc_freq_mask = (a1 >> 16) & 0xffff;
 		cyc_thresh_mask = b1 & 0xffff;
