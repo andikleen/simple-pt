@@ -186,8 +186,9 @@ static struct kernel_param_ops addr_ops = {
 };
 
 /* Protects start/stop_kprobe_set and the kprobes */
-/* If you are porting this driver this code is all optional and can be
- * removed.
+
+/* If you are porting this driver this kprobes related code is all
+ * optional and can be removed.
  */
 static DEFINE_MUTEX(kprobe_mutex);
 
@@ -247,6 +248,8 @@ static struct kernel_param_ops trace_stop_ops = {
 	.set = trace_stop_set,
 	.get = param_get_ulong,
 };
+
+/* End of optional code */
 
 static DEFINE_PER_CPU(unsigned long, pt_buffer_cpu);
 static DEFINE_PER_CPU(u64 *, topa_cpu);
