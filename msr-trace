@@ -1,0 +1,14 @@
+#!/usr/bin/perl -p
+# add symbol msr names to msr trace
+# msr-trace < trace.XXX
+
+s/msr=560/RTIT_OUTPUT_BASE/g;
+s/msr=561/RTIT_OUTPUT_MASK_PTRS/g;
+s/msr=570/RTIT_CTL/g;
+s/msr=571/RTIT_STATUS/g;
+s/msr=572/CR3_MATCH/g;
+s/msr=580/ADDR0_START/;
+s/msr=581/ADDR0_END/;
+s/msr=582/ADDR1_START/;
+s/msr=583/ADDR1_END/;
+
