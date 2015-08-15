@@ -854,7 +854,7 @@ static int simple_pt_cpuid(void)
 		pt_num_buffers = 1;
 	a1 = b1 = c1 = d1 = 0;
 	if (a >= 1)
-		cpuid_count(0x07, 1, &a1, &b1, &c1, &d1);
+		cpuid_count(0x14, 1, &a1, &b1, &c1, &d1);
 	if (b & BIT(1)) {
 		mtc_freq_mask = (a1 >> 16) & 0xffff;
 		cyc_thresh_mask = b1 & 0xffff;
