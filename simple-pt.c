@@ -559,7 +559,7 @@ static int simple_pt_buffer_init(int cpu)
 			}
 			per_cpu(topa_cpu, cpu) = topa;
 
-			/* create circular single entry topa table */
+			/* create circular topa table */
 			n = 0;
 			topa[n++] = (u64)__pa(pt_buffer) |
 				(pt_buffer_order << TOPA_SIZE_SHIFT);
