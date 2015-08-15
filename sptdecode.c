@@ -375,7 +375,9 @@ static int decode(struct pt_insn_decoder *decoder)
 					insncnt = 1;
 					sic++;
 					transfer_events(si, &insn);
-				} else if (insn.iclass == ptic_return || insn.iclass == ptic_far_return || si->ts) {
+				} else if (insn.iclass == ptic_return || insn.iclass == ptic_far_return || si->ts ||
+						insn.enabled || insn.disabled || insn.resumed || insn.interrupted ||
+						insn.resynced || insn.stopped || insn.aborted) {
 					si->ip = insn.ip;
 					si->insn_delta = insncnt;
 					insncnt = 0;
