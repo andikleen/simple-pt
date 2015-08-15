@@ -48,6 +48,8 @@ int main(int ac, char **av)
 		printf("multiple toPA entries:		%d\n", !!(c & BIT(1)));
 		printf("single range:			%d\n", !!(c & BIT(2)));
 		printf("payloads are LIP:		%d\n", !!(c & BIT(31)));
+		printf("cycle accurate mode / psb freq:	%d\n", !!(b & BIT(1)));
+		printf("filtering / stop / mtc:		%d\n", !!(b & BIT(2)));
 		printf("CR3 match:			%d\n", has_cr3_match);
 		printf("Number of address ranges:	%d\n", addr_range_num);
 		printf("Supports filter ranges:		%d\n", addr_cfg_max >= 1);
