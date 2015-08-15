@@ -832,7 +832,11 @@ static int simple_pt_cpuid(void)
 	unsigned a, b, c, d;
 	unsigned a1, b1, c1, d1;
 
-	/* check cpuid */
+	cpuid(0, &a, &b, &c, &d);
+	if (a < 0x14) {
+		pr_info("Not enough CPUID support for PT\n");
+		return -EIO;
+	}
 	cpuid_count(0x07, 0, &a, &b, &c, &d);
 	if ((b & BIT(25)) == 0) {
 		pr_info("No PT support\n");
