@@ -38,7 +38,13 @@ grep -v -q page_fault stest.out
 run --start-addr SyS_prctl --stop-addr SyS_personality 
 grep -q main stest.out
 
-# SKL
+MAIN=$(nm loop | awk '$3 == "main" { print "0x" $1 }  ')
+FINI=$(nm loop | awk '$3 == "_fini" { print "0x" $1 }  ')
+
+if ./ptfeature filter ; then
+	run --filter $MAIN,$FINI -c loop
+	grep -v -q write stest.out
+fi
 
 set +x
 trap "" ERR 0
