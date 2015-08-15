@@ -65,6 +65,10 @@ Build the user tools
 
 	make user
 
+Check if your system supports PT
+
+	./ptfeature
+
 Run trace
 
 	sudo ./sptcmd -c ls ls

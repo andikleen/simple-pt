@@ -3,8 +3,8 @@ LIBIPT_LIB := ../processor-trace/lib
 LIBIPT_INCLUDE := ../processor-trace/libipt/include
 
 USER_OBJS := sptdump.o map.o fastdecode.o sptdecode.o dumpkcore.o \
-	     elf.o symtab.o freq.o dtools.o kernel.o
-USER_EXE := sptdump fastdecode sptdecode # dumpkcore
+	     elf.o symtab.o freq.o dtools.o kernel.o ptfeature.o
+USER_EXE := sptdump fastdecode sptdecode ptfeature # dumpkcore
 
 KDIR = /lib/modules/`uname -r`/build
 obj-m := simple-pt.o
