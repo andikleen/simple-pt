@@ -20,7 +20,7 @@ install:
 
 clean:
 	${M} clean
-	rm -rf ${USER_EXE} ${USER_OBJS}
+	rm -rf ${USER_EXE} ${USER_OBJS} loop stest.*
 
 ${USER_OBJS}: CFLAGS := ${USER_CFLAGS}
 
