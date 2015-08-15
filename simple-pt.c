@@ -227,7 +227,14 @@ static int kprobe_set(const char *val, const struct kernel_param *kp,
 		kprobe->addr = NULL;
 	}
 	if (addr) {
+		static int (*handler)(struct kprobe *kp, struct pt_regs *regs);
+		handler = kprobe->pre_handler;
+		/* Linux doesn't like reusing an old kprobes structure.
+		 * Always clear and reinitialize.
+		 */
+		memset(kprobe, 0, sizeof(struct kprobe));
 		kprobe->addr = (kprobe_opcode_t *)addr;
+		kprobe->pre_handler = handler;
 		ret = register_kprobe(kprobe);
 		if (ret)
 			pr_err("registering kprobe failed\n");
