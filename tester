@@ -1,0 +1,49 @@
+#!/bin/sh
+# simple test for simple pt
+# needs to be run as root
+
+set -e
+set -x
+
+failed() {
+	echo FAILED
+	exit 1
+}
+trap failed ERR 0
+
+export LD_LIBRARY_PATH=$(pwd)/../processor-trace/lib
+export PATH=$PATH:.
+
+PREFIX=stest
+
+EXTRA=-t
+
+run() {
+	sptcmd $EXTRA -o $PREFIX "$@" taskset -c 0 ./loop
+	sptdecode --sideband ${PREFIX}.sideband --pt ${PREFIX}.0 $DARGS > ${PREFIX}.out
+}
+
+gcc -o loop loop.c -g
+run
+grep -q  __libc_start_main.*main stest.out
+grep -q page_fault stest.out
+run -c loop
+grep -q  __libc_start_main.*main stest.out
+grep -q page_fault stest.out
+run --disretc --msr-trace --no-user
+grep -q page_fault stest.out
+run --no-kernel -c loop
+grep -q  __libc_start_main.*main stest.out
+run --start-addr SyS_prctl --stop-addr SyS_personality 
+
+# SKL
+
+set +x
+trap "" ERR 0
+
+echo 
+echo SUCCEEDED
+echo
+
+
+
