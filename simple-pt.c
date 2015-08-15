@@ -626,6 +626,8 @@ static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 		if (cpu >= NR_CPUS || !cpu_online(cpu))
 			return -EINVAL;
 		file->private_data = (void *)cpu;
+		/* Reset trigger state on dumping */
+		delay_start = false;
 		return 0;
 	}
 	case SIMPLE_PT_GET_SIZE:
