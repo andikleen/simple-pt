@@ -6,6 +6,14 @@
 
 #define BIT(x) (1ULL << (x))
 
+static void print_bits(unsigned x)
+{
+	int i;
+	for (i = 0; i < 32; i++)
+		if ((1U<<i) & x)
+			printf("%d ", i);
+}
+
 int main(int ac, char **av)
 {
 	unsigned a, b, c, d;
@@ -15,7 +23,6 @@ int main(int ac, char **av)
 	int cyc_thresh_mask = 0;
 	int psb_freq_mask = 0;
 	int addr_range_num = 0;
-	int has_cr3_match = 0;
 
 	if (__get_cpuid_max(0, NULL) < 0x14) {
 		printf("Too old CPU\n");
@@ -29,7 +36,6 @@ int main(int ac, char **av)
 		return 1;
 	}
 	__cpuid_count(0x14, 0, a, b, c, d);
-	has_cr3_match = !!(b & BIT(0));
 	if (b & BIT(2))
 		addr_cfg_max = 2;
 	a1 = b1 = c1 = d1 = 0;
@@ -44,19 +50,25 @@ int main(int ac, char **av)
 
 	if (av[1] == NULL) {
 		printf("Supports PT\n");
-		printf("toPA:				%d\n", !!(c & BIT(0)));
+		printf("toPA output support:		%d\n", !!(c & BIT(0)));
 		printf("multiple toPA entries:		%d\n", !!(c & BIT(1)));
 		printf("single range:			%d\n", !!(c & BIT(2)));
 		printf("payloads are LIP:		%d\n", !!(c & BIT(31)));
 		printf("cycle accurate mode / psb freq:	%d\n", !!(b & BIT(1)));
 		printf("filtering / stop / mtc:		%d\n", !!(b & BIT(2)));
-		printf("CR3 match:			%d\n", has_cr3_match);
+		printf("CR3 match:			%d\n", !!(b & BIT(0)));
 		printf("Number of address ranges:	%d\n", addr_range_num);
 		printf("Supports filter ranges:		%d\n", addr_cfg_max >= 1);
 		printf("Supports stop ranges:		%d\n", addr_cfg_max >= 2);
-		printf("Cycles threshold mask:		%x\n", cyc_thresh_mask);
-		printf("PSB freq mask:			%x\n", psb_freq_mask);
-		printf("MTC freq mask:			%x\n", mtc_freq_mask);
+		printf("Valid cycles thresholds:	");
+		print_bits(cyc_thresh_mask);
+		putchar('\n');
+		printf("Valid PSB frequencies:		");
+		print_bits(psb_freq_mask);
+		putchar('\n');
+		printf("Valid MTC frequencies:	        ");
+		print_bits(mtc_freq_mask);
+		putchar('\n');
 		return 0;
 	}
 
