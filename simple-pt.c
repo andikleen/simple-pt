@@ -384,7 +384,7 @@ static int start_pt(void)
 	/* Otherwise wait for start trigger */
 	if (!delay_start)
 		val |= TRACE_EN;
-	/* val |= BRANCH_EN; */ /* BDW doesn't like this */
+	val |= BRANCH_EN;
 	if (!single_range)
 		val |= TO_PA;
 	if (tsc_en)
