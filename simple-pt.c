@@ -98,6 +98,8 @@
 #define MSR_IA32_ADDR1_START		0x00000582
 #define MSR_IA32_ADDR1_END		0x00000583
 
+static bool delay_start;
+
 static void restart(void);
 
 static int resync_set(const char *val, const struct kernel_param *kp)
@@ -109,6 +111,17 @@ static int resync_set(const char *val, const struct kernel_param *kp)
 
 static struct kernel_param_ops resync_ops = {
 	.set = resync_set,
+	.get = param_get_int,
+};
+
+static int start_set(const char *val, const struct kernel_param *kp)
+{
+	int ret = resync_set(val, kp);
+	delay_start = false;
+	return ret;
+}
+static struct kernel_param_ops start_ops = {
+	.set = start_set,
 	.get = param_get_int,
 };
 
@@ -224,8 +237,6 @@ static int kprobe_set(const char *val, const struct kernel_param *kp,
 	return ret;
 }
 
-static bool delay_start;
-
 static int trace_start_set(const char *val, const struct kernel_param *kp)
 {
 	int ret = kprobe_set(val, kp, &start_kprobe);
@@ -269,7 +280,7 @@ MODULE_PARM_DESC(pt_buffer_order, "Order of PT buffer size per CPU (2^n pages)")
 static int pt_num_buffers = 1;
 module_param(pt_num_buffers, int, 0444);
 MODULE_PARM_DESC(pt_num_buffers, "Number of PT buffers per CPU (if supported)");
-module_param_cb(start, &resync_ops, &start, 0644);
+module_param_cb(start, &start_ops, &start, 0644);
 MODULE_PARM_DESC(start, "Set to 1 to start trace, or 0 to stop");
 static int user = 1;
 module_param_cb(user, &resync_ops, &user, 0644);
@@ -458,7 +469,6 @@ static int probe_start(struct kprobe *kp, struct pt_regs *regs)
 	pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val);
 	val |= TRACE_EN;
 	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val);
-	delay_start = false;
 	return 0;
 }
 
@@ -605,8 +615,6 @@ static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 		if (cpu >= NR_CPUS || !cpu_online(cpu))
 			return -EINVAL;
 		file->private_data = (void *)cpu;
-		/* Reset trigger state on dumping */
-		delay_start = false;
 		return 0;
 	}
 	case SIMPLE_PT_GET_SIZE:
