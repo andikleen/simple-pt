@@ -74,11 +74,6 @@ Run trace
 	sudo ./sptcmd -c ls ls
 	sudo ./sptdecode --sideband ptout.sideband --pt ptout.0 | less
 
-Measure whole system for 1 second
-
-	sudo ./sptcode sleep 1
-
-	
 sptcmd loads and configures the kernel driver. It runs a program with trace. It always 
 does a global trace. It writes the pt trace data to trace files for each CPU
 (ptout.N where N is the CPU number). It also writes side band information needed
