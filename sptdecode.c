@@ -47,6 +47,8 @@
 #include "dtools.h"
 #include "kernel.h"
 
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(*(x)))
+
 /* Includes branches and anything with a time. Always
  * flushed on any resyncs.
  */
@@ -166,10 +168,27 @@ static void print_time(uint64_t ts, uint64_t *last_ts,uint64_t *first_ts)
 
 int dump_insn;
 
-static void print_insn(struct pt_insn *insn)
+static char *insn_class(enum pt_insn_class class)
+{
+	static char *class_name[] = {
+		[ptic_error] = "error",
+		[ptic_other] = "other",
+		[ptic_call] = "call",
+		[ptic_return] = "ret",
+		[ptic_jump] = "jump",
+		[ptic_cond_jump] = "cjump",
+		[ptic_far_call] = "fcall",
+		[ptic_far_return] = "fret",
+		[ptic_far_jump] = "fjump",
+	};
+	return class < ARRAY_SIZE(class_name) ? class_name[class] : "?";
+}
+
+static void print_insn(struct pt_insn *insn, uint64_t ts)
 {
 	int i;
-	printf("%lx insn:", insn->ip);
+	printf("%lx %lu %5s insn:", insn->ip, ts,
+		insn_class(insn->iclass));
 	for (i = 0; i < insn->size; i++)
 		printf(" %02x", insn->raw[i]);
 	printf("\n");
@@ -338,11 +357,11 @@ static int decode(struct pt_insn_decoder *decoder)
 					errip = insn.ip;
 					break;
 				}
-				if (dump_insn)
-					print_insn(&insn);
-				insncnt++;
 				// XXX use lost counts
 				pt_insn_time(decoder, &si->ts, NULL, NULL);
+				if (dump_insn)
+					print_insn(&insn, si->ts);
+				insncnt++;
 				uint32_t ratio;
 				si->ratio = 0;
 				pt_insn_core_bus_ratio(decoder, &ratio);
