@@ -23,11 +23,11 @@ PT is supported on Intel 5th generation Code (Broadwell) and 6th generation Code
 	...
 				[+  13] __libc_start_main+446 -> main
 				[+   9]     main+22 -> f1
-				[+   4]	 f1+9 -> f2
-				[+   2]	 f1+19 -> f2
+				[+   4]	      f1+9 -> f2
+				[+   2]	      f1+19 -> f2
 				[+   5]     main+22 -> f1
-				[+   4]	 f1+9 -> f2
-				[+   2]	 f1+19 -> f2
+				[+   4]	      f1+9 -> f2
+				[+   2]	      f1+19 -> f2
 				[+   5]     main+22 -> f1
 	...
 
