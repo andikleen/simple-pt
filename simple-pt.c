@@ -86,8 +86,10 @@
 #define MTC_MASK	(0xf << 14)
 #define CYC_MASK	(0xf << 19)
 #define PSB_MASK	(0xf << 24)
-#define ADDR0_MASK	(0x3ULL << 32)
-#define ADDR1_MASK	(0x3ULL << 36)
+#define ADDR0_SHIFT	32
+#define ADDR1_SHIFT	32
+#define ADDR0_MASK	(0xfULL << ADDR0_SHIFT)
+#define ADDR1_MASK	(0xfULL << ADDR1_SHIFT)
 #define MSR_IA32_RTIT_STATUS		0x00000571
 #define MSR_IA32_CR3_MATCH		0x00000572
 #define TOPA_STOP	BIT_ULL(4)
@@ -426,12 +428,12 @@ static int start_pt(void)
 	if (psb_freq && (1U << (psb_freq_mask-1)))
 		val |= (psb_freq - 1) << 24;
 	if (addr0_cfg && (addr0_cfg <= addr_cfg_max) && addr_range_num >= 1) {
-		val |= ((u64)addr0_cfg << 32);
+		val |= ((u64)addr0_cfg << ADDR0_SHIFT);
 		pt_wrmsrl_safe(MSR_IA32_ADDR0_START, addr0_start);
 		pt_wrmsrl_safe(MSR_IA32_ADDR0_END, addr0_end);
 	}
 	if (addr1_cfg && (addr1_cfg <= addr_cfg_max) && addr_range_num >= 2) {
-		val |= ((u64)addr1_cfg << 32);
+		val |= ((u64)addr1_cfg << ADDR1_SHIFT);
 		pt_wrmsrl_safe(MSR_IA32_ADDR1_START, addr1_start);
 		pt_wrmsrl_safe(MSR_IA32_ADDR1_END, addr1_end);
 	}
