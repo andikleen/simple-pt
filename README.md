@@ -90,6 +90,33 @@ Run test suite
 
 	sudo ./tester
 
+# Design overview
+
+The kernel driver manages the PT hardware and allocates the trace buffers.
+It also sets up some custom trace points for the sideband data.
+
+The simple-pt kernel driver is configured using module parameters. Many can be changed
+at runtime through /sys/module/simple_pt/parameters. A few need a driver reload
+
+Use
+	modinfo simple-pt.ko
+
+to show all allowed parameters. For most parameters sptcmd has options to
+set them up. That is the recommended interface.
+
+sptcmd configures the driver, starts the trace and runs the trace command.
+The driver sets up a ring buffer and runs the the processor trace
+for each CPU until stopped.  Then it calls sptdump to write the buffer
+for each CPU to a ptout.N file (N is the number of the CPU)
+
+For the side band information ftrace with some custom trace points defined
+by the driver is used. sptsideband converts the ftrace output into
+the .sideband files used by the decoder.
+
+sptdecode then reads the PT data, the sideband data, the executables, the kernel code
+through /proc/kcore, and uses the libipt decoder to reconstruct the
+trace.
+
 # Notes
 
 	* To limit the program to one pcu use sptcmd taskset -c CPU ..
@@ -99,18 +126,22 @@ Run test suite
 	  This will be improved in the future.
 	* perf or the BIOS may be already using the PT hardware. If you know it's safe you can take
 over the PT hardware with --force -d.
+	* When configuring the driver manually you need to manually reset any parameters you do not want anymore.
+sptcmd takes care of that automatically.
+
 # Limitations:
 
 	* When kernel tracing is disabled (-K) multiple processes cannot be distinguished by the decoder.
 
 	* Enabling/Disabling tracing causes the kernel to modify itself, which can cause the PT decoder
-to lose synchronization. sptcmd disables trace points. Use -k when needed. This can sometimes affect the
+to lose synchronization. sptcmd disables trace points. Use --no-kernel when needed. This can sometimes affect the
 test suite.
 
 	* sptcmd does not continuously save side band data, so events at the beginning
 of a trace may not be saved. For complex workloads it may be needed to increase the trace buffers 
 in /sys/kernel/debug/tracing/buffer_size_kb
 
+	* Decoder loses synchronization in some cases where it shouldn't.
 
 Contact: simple-pt@halobates.de
 
