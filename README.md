@@ -9,7 +9,31 @@ traces.
 
 PT is supported on Intel 5th generation Code (Broadwell) and 6th generation Code (Skylake) CPUs.
 
-simple pt consists of a 
+# Example
+
+	% sptcmd  -c tcall taskset -c 0 ./tcall
+	cpu   0 offset 1027688,  1003 KB, writing to ptout.0
+	...
+	Wrote sideband to ptout.sideband
+	% sptdecode --sideband ptout.sideband --pt ptout.0 | less
+	TIME      DELTA	 INSNs   OPERATION
+	frequency 32
+	0	 [+0]	  [+   1] _dl_aux_init+436
+				[+   6] __libc_start_main+455 -> _dl_discover_osversion
+	...
+				[+  13] __libc_start_main+446 -> main
+				[+   9]     main+22 -> f1
+				[+   4]	 f1+9 -> f2
+				[+   2]	 f1+19 -> f2
+				[+   5]     main+22 -> f1
+				[+   4]	 f1+9 -> f2
+				[+   2]	 f1+19 -> f2
+				[+   5]     main+22 -> f1
+	...
+
+# Overview
+
+simple-pt consists of a
 * kernel driver
 * sptcmd to collect data from the kernel driver
 * sptdecode to decode PT information
