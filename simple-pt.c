@@ -33,7 +33,6 @@
 
 
 /* Notebook:
-   Multiple entry toPA
    Auto probe largest buffer
    Test old kernels
    Test CPU hotplug
@@ -500,6 +499,7 @@ static int probe_stop(struct kprobe *kp, struct pt_regs *regs)
 	return 0;
 }
 
+/* Log CR3 of all already running processes. */
 static void do_enumerate_all(void)
 {
 	struct task_struct *t;
@@ -931,6 +931,8 @@ static int simple_pt_init(void)
 	}
 
 	on_each_cpu(simple_pt_cpu_init, NULL, 1);
+
+	/* Only needed when handling CPU hotplug */
 	register_cpu_notifier(&cpu_notifier);
 	put_online_cpus();
 	if (pt_error) {
@@ -944,6 +946,7 @@ static int simple_pt_init(void)
 	if (err)
 		pr_info("Cannot register exec tracepoint: %d\n", err);
 
+	/* Trace mmap */
 	err = register_kprobe(&mmap_kp);
 	if (err < 0) {
 		pr_err("registering mmap_region kprobe failed: %d\n", err);
@@ -953,7 +956,7 @@ static int simple_pt_init(void)
 	/* Optional code */
 	atomic_notifier_chain_register(&panic_notifier_list, &panic_notifier);
 
-	/* suspend/resume hooks. */
+	/* Optional suspend/resume hooks. */
 	register_syscore_ops(&simple_pt_syscore);
 
 	initialized = true;
