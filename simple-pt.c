@@ -633,6 +633,8 @@ static int simple_pt_mmap(struct file *file, struct vm_area_struct *vma)
 	u64 *topa;
 	unsigned long buffer_size = PAGE_SIZE << pt_buffer_order;
 
+	vma->vma_flags &= ~VM_MAYWRITE;
+
 	if (len % PAGE_SIZE || len != num * buffer_size || vma->vm_pgoff)
 		return -EINVAL;
 
