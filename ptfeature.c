@@ -54,7 +54,7 @@ int main(int ac, char **av)
 		unsigned a1, b1, c1, d1;
 		__cpuid(0x15, a1, b1, c1, d1);
 		if (a1 && b1)
-			bus_freq = (float)a1 / (float)b1;
+			bus_freq = 1. / ((float)a1 / (float)b1);
 	}
 
 	if (av[1] == NULL) {
