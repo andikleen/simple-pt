@@ -12,7 +12,7 @@ static void print_bits(unsigned x)
 {
 	int i;
 	for (i = 0; i < 32; i++)
-		if ((1U<<i) & x)
+		if (BIT(i) & x)
 			printf("%d ", i);
 }
 
@@ -79,7 +79,8 @@ int main(int ac, char **av)
 		printf("Valid MTC frequencies:	        ");
 		print_bits(mtc_freq_mask);
 		putchar('\n');
-		printf("Bus frequency:			%f\n", bus_freq);
+		if (bus_freq)
+			printf("Bus frequency:			%f\n", bus_freq);
 		return 0;
 	}
 
