@@ -1,4 +1,6 @@
-/* Check CPUID for different PT features */
+/* Check CPUID for different PT features
+ * Without arguments print all.
+ */
 
 #include <stdio.h>
 #include <cpuid.h>
@@ -122,7 +124,7 @@ int main(int ac, char **av)
 			}
 		} else {
 			fprintf(stderr, "Unknown match %s\n", *av);
-			fprintf(stderr, "Valid matches: filter, stop, cyc, psb, mtc, pt, topa, multi_topa, single_range, lip\n");
+			fprintf(stderr, "Valid matches: pt, filter, stop, cyc, psb, mtc, pt, topa, multi_topa, single_range, lip\n");
 			return 1;
 		}
 	}
