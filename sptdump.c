@@ -49,7 +49,7 @@ int main(int ac, char **av)
 {
 	int ncpus = sysconf(_SC_NPROCESSORS_CONF);
 	int pfds[ncpus];
-	int bufsize = 0;
+	int bufsize;
 	char *pbuf[ncpus];
 
 	int i;
@@ -66,7 +66,7 @@ int main(int ac, char **av)
 			continue;
 		}
 
-		if (!bufsize && ioctl(pfds[i], SIMPLE_PT_GET_SIZE, &bufsize) < 0)
+		if (ioctl(pfds[i], SIMPLE_PT_GET_SIZE, &bufsize) < 0)
 			err("SIMPLE_PT_GET_SIZE");
 
 		pbuf[i] = mmap(NULL, bufsize, PROT_READ, MAP_PRIVATE, pfds[i], 0);
