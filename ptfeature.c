@@ -19,15 +19,17 @@ static void print_bits(unsigned x)
 int main(int ac, char **av)
 {
 	unsigned a, b, c, d;
-	unsigned a1, b1, c1, d1;
 	int addr_cfg_max = 0;
 	int mtc_freq_mask = 0;
 	int cyc_thresh_mask = 0;
 	int psb_freq_mask = 0;
 	int addr_range_num = 0;
+	unsigned max_leaf;
+	float bus_freq;
 
-	if (__get_cpuid_max(0, NULL) < 0x14) {
-		printf("Too old CPU\n");
+	max_leaf = __get_cpuid_max(0, NULL);
+	if (max_leaf < 0x14) {
+		printf("No PT support\n");
 		return 1;
 	}
 
@@ -40,14 +42,19 @@ int main(int ac, char **av)
 	__cpuid_count(0x14, 0, a, b, c, d);
 	if (b & BIT(2))
 		addr_cfg_max = 2;
-	a1 = b1 = c1 = d1 = 0;
-	if (a >= 1)
+	if ((b & BIT(1)) && a >= 1) {
+		unsigned a1, b1, c1, d1;
 		__cpuid_count(0x14, 1, a1, b1, c1, d1);
-	if (b & BIT(1)) {
 		mtc_freq_mask = (a1 >> 16) & 0xffff;
 		cyc_thresh_mask = b1 & 0xffff;
 		psb_freq_mask = (b1 >> 16) & 0xffff;
 		addr_range_num = a1 & 0x3;
+	}
+	if (max_leaf >= 0x15) {
+		unsigned a1, b1, c1, d1;
+		__cpuid(0x15, a1, b1, c1, d1);
+		if (a1 && b1)
+			bus_freq = (float)a1 / (float)b1;
 	}
 
 	if (av[1] == NULL) {
@@ -55,6 +62,7 @@ int main(int ac, char **av)
 		printf("toPA output support:		%d\n", !!(c & BIT(0)));
 		printf("multiple toPA entries:		%d\n", !!(c & BIT(1)));
 		printf("single range:			%d\n", !!(c & BIT(2)));
+		printf("trace transport output:		%d\n", !!(c & BIT(3)));
 		printf("payloads are LIP:		%d\n", !!(c & BIT(31)));
 		printf("cycle accurate mode / psb freq:	%d\n", !!(b & BIT(1)));
 		printf("filtering / stop / mtc:		%d\n", !!(b & BIT(2)));
@@ -71,6 +79,7 @@ int main(int ac, char **av)
 		printf("Valid MTC frequencies:	        ");
 		print_bits(mtc_freq_mask);
 		putchar('\n');
+		printf("Bus frequency:			%f\n", bus_freq);
 		return 0;
 	}
 
