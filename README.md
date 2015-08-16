@@ -10,10 +10,10 @@ traces.
 PT is supported on Intel 5th generation Code (Broadwell) and 6th generation Code (Skylake) CPUs.
 
 simple pt consists of a 
-	* kernel driver
-	* sptcmd to collect data from the kernel driver
-	* sptdecode to decode PT information
-	* fastdecode to dump raw PT traces
+* kernel driver
+* sptcmd to collect data from the kernel driver
+* sptdecode to decode PT information
+* fastdecode to dump raw PT traces
 
 It uses the [libipt](https://github.com/01org/processor-trace) PT decoding library
 
@@ -22,22 +22,22 @@ of Linux perf. gdb 7.10 also supports full debugging on top of PT.
 
 Simple PT does *NOT* support:
 
-	* It does not support long term tracing of more data than fits in the buffer (no interrupt)
-	* It does not support any sampling (use perf or VTune)
-	* It requires root rights to collect data (use perf)
-	* It does not support interactive debugging (use gdb or hardware debuggers)
+* It does not support long term tracing of more data than fits in the buffer (no interrupt)
+* It does not support any sampling (use perf or VTune)
+* It requires root rights to collect data (use perf)
+* It does not support interactive debugging (use gdb or hardware debuggers)
 
 Simple PT has the following functionality
-	* set up hardware to processor trace
-	* supports a ring buffer of branch data, stopped on events
-	* supports flushing buffer on panic
-	* does not require patching the kernel
-	* set up PT filters, such as kernel filter
-	* start and stop traces at specific kernel addresses
-	* support tracing multiple processes
-	* print all function calls
-	* simple driver that can be ported to older kernel releases or other operating systems
-	* simple code base that is easily changed.
+* set up hardware to processor trace
+* supports a ring buffer of branch data, stopped on events
+* supports flushing buffer on panic
+* does not require patching the kernel
+* set up PT filters, such as kernel filter
+* start and stop traces at specific kernel addresses
+* support tracing multiple processes
+* print all function calls
+* simple driver that can be ported to older kernel releases or other operating systems
+* simple code base that is easily changed.
 
 # Installation
 
@@ -119,31 +119,32 @@ trace.
 
 # Notes
 
-	* To limit the program to one pcu use sptcmd taskset -c CPU ..
-	* To demangle C++ symbols pipe output through c++filt
-	* To start/stop around specific user code bracket it with dummy syscalls that you
-	  can then put a kernel trigger on. The test suite uses personality(12341234) and prctl(12341234).
-	  This will be improved in the future.
-	* perf or the BIOS may be already using the PT hardware. If you know it's safe you can take
-over the PT hardware with --force -d.
-	* When configuring the driver manually you need to manually reset any parameters you do not want anymore.
-sptcmd takes care of that automatically.
+* To limit the program to one pcu use sptcmd taskset -c CPU ..
+* To demangle C++ symbols pipe output through c++filt
+* To start/stop around specific user code bracket it with dummy syscalls that you
+  can then put a kernel trigger on. The test suite uses personality(12341234) and prctl(12341234).
+  This will be improved in the future.
+* perf or the BIOS may be already using the PT hardware. If you know it's safe you can take
+  over the PT hardware with --force -d.
+* When configuring the driver manually you need to manually reset any parameters you do not want anymore.
+  sptcmd takes care of that automatically.
 
 # Limitations:
 
-	* When kernel tracing is disabled (-K) multiple processes cannot be distinguished by the decoder.
+* When kernel tracing is disabled (-K) multiple processes cannot be distinguished by the decoder.
 
-	* Enabling/Disabling tracing causes the kernel to modify itself, which can cause the PT decoder
-to lose synchronization. sptcmd disables trace points. Use --no-kernel when needed. This can sometimes affect the
-test suite.
+* Enabling/Disabling tracing causes the kernel to modify itself, which can cause the PT decoder
+  to lose synchronization. sptcmd disables trace points. Use --no-kernel when needed. This can sometimes affect the
+  test suite.
 
-	* sptcmd does not continuously save side band data, so events at the beginning
-of a trace may not be saved. For complex workloads it may be needed to increase the trace buffers 
-in /sys/kernel/debug/tracing/buffer_size_kb
+* sptcmd does not continuously save side band data, so events at the beginning
+  of a trace may not be saved. For complex workloads it may be needed to increase the trace buffers 
+  in /sys/kernel/debug/tracing/buffer_size_kb
 
-	* Decoder loses synchronization in some cases where it shouldn't.
+* Decoder loses synchronization in some cases where it shouldn't.
 
-Contact: simple-pt@halobates.de
+# Contact
+simple-pt@halobates.de
 
 For bugs please file a github issue.
 
