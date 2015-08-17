@@ -35,7 +35,6 @@
 /* Notebook:
    Auto probe largest buffer
    Test old kernels
-   Test CPU hotplug
    Test 32bit
    */
 
