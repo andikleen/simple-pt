@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # generate archive of all executables in sideband
 # ptout.sideband -> ptout.tar.gz
 # sptarchive [ptout]

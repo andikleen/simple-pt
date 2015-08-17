@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # simple test for simple pt
 # needs to be run as root
 
