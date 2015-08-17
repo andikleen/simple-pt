@@ -43,9 +43,16 @@
 struct pt_insn_decoder *init_decoder(char *fn, char *cpu)
 {
 	struct pt_config config;
+	unsigned zero = 0;
+
 	pt_config_init(&config);
 	pt_cpu_parse(&config.cpu, cpu);
 	pt_cpu_errata(&config.errata, &config.cpu);
+	/* When no bit is set, set all, as libipt does not keep up with newer
+	 * CPUs otherwise.
+	 */
+	if (!memcmp(&config.errata, &zero, 4))
+		memset(&config.errata,0xff, sizeof(config.errata));
 
 	size_t len;
 	unsigned char *map = mapfile(fn, &len);
