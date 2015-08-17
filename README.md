@@ -72,12 +72,12 @@ Simple PT has the following functionality
 
 Build and install libipt. This currently requires a patched version of libipt.
 
-	git clone -b simple-pt https://github.com/01org/processor-trace
+	git clone -b simple-pt https://github.com/andikleen/processor-trace
 	cd processor-trace
 	cmake .
 	make
 	cp lib/libipt.so* /usr/local/lib64      # or lib depending on your system
-	ldconfig
+	sudo ldconfig
 
 Install libelf-elf-devel or elfutils-devel or similar depending on your distribution.
 
