@@ -152,7 +152,7 @@ if ! lsmod | grep -q simple_pt ; then
 	if [ -r simple-pt.ko ] ; then
 		/sbin/insmod simple-pt.ko force=$FORCE
 	else
-		/sbin/modprobe simple-pt
+		/sbin/modprobe simple-pt force=$FORCE
 	fi
 fi
 C=/sys/module/simple_pt/parameters
