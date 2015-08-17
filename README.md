@@ -146,6 +146,15 @@ sptdecode then reads the PT data, the sideband data, the executables, the kernel
 through /proc/kcore, and uses the libipt decoder to reconstruct the
 trace.
 
+# Manpages
+
+* [sptcmd](http://halobates.de/spt-man/sptcmd.html)
+* [sptdecode](http://halobates.de/spt-man/sptdecode.html)
+* [ptfeature](http://halobates.de/spt-man/ptfeature.html)
+* [sptarchive](http://halobates.de/spt-man/sptarchive.html)
+* [fastdecode](http://halobates.de/spt-man/fastdecode.html)
+* [sptdump](http://halobates.de/spt-man/sptdump.html)
+
 # Notes
 
 * To limit the program to one CPU use sptcmd taskset -c CPU ..
