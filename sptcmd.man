@@ -1,0 +1,89 @@
+.TH SPTDECODE "" SIMPLE-PT
+.SH NAME
+sptcmd \- trace branch data using simple-pt kernel driver
+.SH SYNOPSIS
+sptcmd [arguments] cmd
+.SH DESCRIPTION
+.B sptcmd
+loads, configures and controls the
+.B simple-pt
+kernel driver to collect kernel traces using Intel Processor Trace (PT). 
+It runs 
+.I cmd 
+and collects tracing data while cmd runs. The resulting data can be decoded
+using 
+.I sptdecode.
+sptcmd needs to run as root. The CPU needs to support Intel Processor Trace.
+.PP
+sptcmd writes the tracing output to 
+.I PREFIX.N, 
+where N is the number of each CPU in the system, and 
+.I PREFIX 
+is configured with the
+.I --prefix
+option. Default prefix is 
+.I ptout.
+It also writes sideband information needed by
+.I sptdecode
+to 
+.I PREFIX.sideband.
+.PP
+The
+.B --comm 
+or 
+.B -c
+option can be used to set a command filter. The kernel driver will only trace command then.
+command is typically the basename of the command (the same name as visible in "top"). Otherwise
+the driver will trace globally.
+.PP
+The 
+.B --no-kernel
+or 
+.B -K
+option disables kernel tracing. Note that this normally requires using 
+.I --comm.
+The
+.B --no-user
+or
+.B -U
+option disables user space tracing.
+.PP
+The 
+.B --start-addr
+option sets a trace start trigger at addr. addr must be a kernel address or symbol+offset.
+When a start trigger is set the trace is not started. Each trigger works independently on each logical CPU.
+The 
+.B --stop-addr
+option similarly sets a trace stop trigger at addr to stop the trace.
+.PP
+The
+.B --filter start,stop
+option sets a filter region between the start and stop address. The trace only traces when the IP
+is in the filter region. A filter region can be anywere, including user programs. For kernel addresses
+symbol+offset can be specified, otherwise hex addresses are needed.
+Only a limited number of filter regions are support, and none may be depending on the CPU.
+.PP
+The
+.B --stop-range start,stop
+sets a stop filter if supported by the CPU. Like with
+.I --filter
+it can be anywhere.
+.PP
+The
+.B --cyc,
+.B --mtc,
+-B --psb
+options configure how often different packets are logged, affecting timing. 
+These options are not supported on all CPUs.
+.PP
+The more obscure arguments are not documented here.
+For a full list of command line arguments see 
+.I sptcmd --help
+.SH NOTES
+Not all options are supported on all CPUs. Run the
+.B ptfeature
+tool to see what options are supported on your system.
+.SH SEE ALSO
+.B sptdecode
+.B ptfeature
+

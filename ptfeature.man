@@ -1,0 +1,11 @@
+.TH PTFEATURE "" SIMPLE-PT
+.SH NAME
+ptfeature \- Show Intel Processor Trace features of current CPU.
+.SH SYNOPSIS
+ptfeature [feature ...]
+.SH DESCRIPTION
+.B ptfeature
+shows the Intel Processor Trace (PT) features supported by the current CPU.
+If a feature is specified on the command line it return a non-zero exit code if the feature is not supported.
+.PP
+Valid features are: pt, filter, stop, cyc, psb, mtc, pt, topa, multi_topa, single_range, lip

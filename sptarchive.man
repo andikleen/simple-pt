@@ -1,0 +1,18 @@
+.TH SPTARCHIVE "" SIMPLE-PT
+.SH NAME
+sptarchive \- tar up all binaries referenced in a simple-pt sideband file
+.SH SYNOPSIS
+sptarchive prefix
+.SH DESCRIPTION
+.B sptarchive
+creates a tar file with all the binaries referenced in a sideband file. The tar file
+has is named prefix.tar.gz. The sideband file is named prefix.sideband. This is useful
+to decodecollected traces on other systems using
+.I sptdecode.
+.SH NOTES
+Kernel code cannot be decoded on other systems currently, and also the 
+CPU may need to be correctly set in 
+.I sptdecode 
+.SH SEE ALSO
+.B sptdecode
+.B sptcmd 

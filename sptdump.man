@@ -1,0 +1,15 @@
+.TH SPTDUMP "" SIMPLE-PT
+.SH NAME
+sptdump \- Dump trace data from simple-pt kernel driver to file
+.SH SYNOPSIS
+sptdump [prefix]
+.SH DESCRIPTION
+.B sptdump
+dumps the data collected by the simple-pt kernel driver to a file.
+Each CPU's trace data is written to a file named
+.I prefix.N
+where N is the CPU number. prefix is ptout by default.
+Typically sptdump does not need to be run directly, but is controlled by
+.I sptcmd.
+.SH SEE ALSO
+.B sptcmd

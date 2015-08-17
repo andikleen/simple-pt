@@ -1,0 +1,14 @@
+.TH FASTDECODE "" SIMPLE-PT
+.SH NAME
+fastdecode \- Processor Trace packet dumper
+.SH SYNOPSIS
+fastdecode file ...
+.SH DESCRIPTION
+.B fastdecode 
+prints PT packets in Processor Trace files collected by simple-pt. It is intended
+for debugging. The standard interface to read PT traces it through the higher-level
+.B sptdecode
+decoding tool.
+.SH SEE ALSO
+.B sptcmd
+.B sptdecode
