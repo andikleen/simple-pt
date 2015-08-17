@@ -73,16 +73,62 @@ The
 .B --cyc,
 .B --mtc,
 -B --psb
-options configure how often different packets are logged, affecting timing. 
-These options are not supported on all CPUs.
+options configure how often different packets are logged.
+.I --cyc
+and
+.I --mtc
+configure the frequency of timing packets.
+.I --cyc thresh
+sets the cycle packet threshold to 2^(n-1) cycles for fine grained timing.
+.I --mtc thresh
+sets the threshold to update the TSC timer to 2^(n-1) cycles.
+.I --psb thresh
+sets the PSB packet threshold to 2K^n bytes. This influences how well the decoder
+can recover from overflows or synchronization losses.
+These options are not supported on all CPUs and only a subset of parameters are
+supported (see
+.B ptfeature
+output).
 .PP
-The more obscure arguments are not documented here.
-For a full list of command line arguments see 
-.I sptcmd --help
+The
+.B --disretc
+option disables return compression in the trace.
+.PP
+The
+.B --keep
+option keeps the kernel side band trace points running after
+.I sptcmd
+ended. These trace points only have minor overhead. This is mostly a workaround
+for the kernel modifying itself when trace points change, which can lead
+to decoder synchronization loss.
+The
+.B --enumerate
+option forces enumeration of all processes in the sideband data.
+The
+.B --dont-dump
+option disables dumping of the trace data.
+.PP
+.B --msr-trace
+enables tracing all PT configuration register accesses done by the driver.
+The resulting trace is put into
+.I prefix.trace
+and can decoded with
+.B spttrace.
+This is mainly useful for driver debugging.
+The
+.B --reload
+option forces a reload of the driver and the
+.B --force
+option causes the driver to forcibly take over the PT hardware, even when another agent
+may be already using it (dangerous!).
 .SH NOTES
 Not all options are supported on all CPUs. Run the
 .B ptfeature
 tool to see what options are supported on your system.
+.PP
+A few driver features are not supported by sptcmd. Run
+.BB modinfo simple-pt.ko
+to see the full list.
 .SH SEE ALSO
 .B sptdecode
 .B ptfeature
