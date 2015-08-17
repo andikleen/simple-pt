@@ -42,11 +42,14 @@ simple-pt consists of a
 It uses the [libipt](https://github.com/01org/processor-trace) PT decoding library
 
 Note that Linux 4.1 and later has an [integrated PT implementation](http://lwn.net/Articles/648154/) as part 
-of Linux perf. gdb 7.10 also supports full debugging on top of PT.
+of Linux perf. gdb 7.10 also supports full debugging on top of PT. Intel VTune also supports PT.
+
+If you want a full production system please use one of these. simple-pt is an experimental implementation,
+that does many things differently and may be worse.
 
 Simple PT does *NOT* support:
 
-* It does not support long term tracing of more data than fits in the buffer (no interrupt)
+* It does not support long term tracing of more data than fits in the buffer (no interrupt) (use perf)
 * It does not support any sampling (use perf or VTune)
 * It requires root rights to collect data (use perf)
 * It does not support interactive debugging (use gdb or hardware debuggers)
@@ -55,13 +58,14 @@ Simple PT has the following functionality
 * set up hardware to processor trace
 * supports a ring buffer of branch data, stopped on events
 * supports flushing buffer on panic
-* does not require patching the kernel
+* does not require patching the kernel (although it cheats a bit using kprobes)
 * set up PT filters, such as kernel filter
 * start and stop traces at specific kernel addresses
 * support tracing multiple processes
 * print all function calls
-* simple driver that can be ported to older kernel releases or other operating systems
+* simple driver that could be ported to older kernel releases or other operating systems
 * simple code base that is easily changed.
+* modular "unix style" design with simple tools that do only one thing
 
 # Installation
 
