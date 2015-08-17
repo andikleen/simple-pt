@@ -14,6 +14,8 @@ M := make -C ${KDIR} M=`pwd`
 
 CFLAGS_simple-pt.o := -DTRACE_INCLUDE_PATH=${M}
 
+MANHTML := $(MAN:.man=.html)
+
 all:
 	${M} modules
 
@@ -22,7 +24,7 @@ install:
 
 clean:
 	${M} clean
-	rm -rf ${USER_EXE} ${USER_OBJS} loop stest.*
+	rm -rf ${USER_EXE} ${USER_OBJS} loop stest.* ${MANHTML}
 
 ${USER_OBJS}: CFLAGS := ${USER_CFLAGS}
 
@@ -44,7 +46,7 @@ sptdecode: sptdecode.o map.o elf.o symtab.o freq.o dtools.o kernel.o
 
 dumpkcore: LDLIBS += -lelf
 
-man-html:
-	for j in ${MAN} ; do \
-		man -Thtml ./$$j > $${j/.man/.html} ; \
-	done
+%.html: %.man
+	man -Thtml ./$^ > $@
+
+man-html: ${MANHTML}
