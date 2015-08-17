@@ -42,7 +42,8 @@ simple-pt consists of a
 It uses the [libipt](https://github.com/01org/processor-trace) PT decoding library
 
 Note that Linux 4.1 and later has an [integrated PT implementation](http://lwn.net/Articles/648154/) as part 
-of Linux perf. gdb 7.10 also supports full debugging on top of PT. Intel VTune also supports PT.
+of Linux perf. gdb 7.10 also supports full debugging on top of PT. [Intel VTune](https://software.intel.com/en-us/intel-vtune-amplifier-xe)
+also supports PT.
 
 If you want a full production system please use one of these. simple-pt is an experimental implementation,
 that does many things differently and may be worse.
