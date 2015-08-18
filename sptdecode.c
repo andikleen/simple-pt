@@ -39,6 +39,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <assert.h>
+#include <stddef.h>
 
 #include "map.h"
 #include "elf.h"
@@ -47,7 +48,13 @@
 #include "dtools.h"
 #include "kernel.h"
 
+#ifdef HAVE_UDIS86
+#include <udis86.h>
+#endif
+
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(*(x)))
+#define container_of(ptr, type, member) \
+	((type *)((char *)(ptr) - offsetof(type, member)))
 
 /* Includes branches and anything with a time. Always
  * flushed on any resyncs.
@@ -184,13 +191,62 @@ static char *insn_class(enum pt_insn_class class)
 	return class < ARRAY_SIZE(class_name) ? class_name[class] : "?";
 }
 
-static void print_insn(struct pt_insn *insn, uint64_t ts)
+#ifdef HAVE_UDIS86
+
+struct dis {
+	ud_t ud_obj;
+	uint64_t cr3;
+};
+
+static const char *dis_resolve(struct ud *u, uint64_t addr, int64_t *off)
+{
+	struct dis *d = container_of(u, struct dis, ud_obj);
+	struct sym *sym = findsym(addr, d->cr3);
+	if (sym) {
+		*off = addr - sym->val;
+		return sym->name;
+	} else
+		return NULL;
+}
+
+static void init_dis(struct dis *d)
+{
+	ud_init(&d->ud_obj);
+	ud_set_syntax(&d->ud_obj, UD_SYN_ATT);
+	ud_set_sym_resolver(&d->ud_obj, dis_resolve);
+}
+
+#else
+
+struct dis {};
+static void init_dis(struct dis *d) {}
+
+#endif
+
+#define NUM_WIDTH 35
+
+static void print_insn(struct pt_insn *insn, uint64_t ts,
+		       struct dis *d,
+		       uint64_t cr3)
 {
 	int i;
-	printf("%lx %lu %5s insn:", insn->ip, ts,
+	int n;
+	printf("%lx %lu %5s insn: ", insn->ip, ts,
 		insn_class(insn->iclass));
+	n = 0;
 	for (i = 0; i < insn->size; i++)
-		printf(" %02x", insn->raw[i]);
+		n += printf("%02x ", insn->raw[i]);
+#ifdef HAVE_UDIS86
+	d->cr3 = cr3;
+	if (insn->mode == ptem_32bit)
+		ud_set_mode(&d->ud_obj, 32);
+	else
+		ud_set_mode(&d->ud_obj, 64);
+	ud_set_pc(&d->ud_obj, insn->ip);
+	ud_set_input_buffer(&d->ud_obj, insn->raw, insn->size);
+	ud_disassemble(&d->ud_obj);
+	printf("%*s%s", NUM_WIDTH - n, "", ud_insn_asm(&d->ud_obj));
+#endif
 	printf("\n");
 }
 
@@ -329,7 +385,9 @@ static int decode(struct pt_insn_decoder *decoder)
 	struct global_pstate gps = { .first_ts = 0, .last_ts = 0 };
 	uint64_t last_ts = 0;
 	struct local_pstate ps;
+	struct dis dis;
 
+	init_dis(&dis);
 	for (;;) {
 		uint64_t pos;
 		int err = pt_insn_sync_forward(decoder);
@@ -359,8 +417,9 @@ static int decode(struct pt_insn_decoder *decoder)
 				}
 				// XXX use lost counts
 				pt_insn_time(decoder, &si->ts, NULL, NULL);
+				pt_insn_get_cr3(decoder, &si->cr3);
 				if (dump_insn)
-					print_insn(&insn, si->ts);
+					print_insn(&insn, si->ts, &dis, si->cr3);
 				insncnt++;
 				uint32_t ratio;
 				si->ratio = 0;
@@ -369,7 +428,6 @@ static int decode(struct pt_insn_decoder *decoder)
 					si->ratio = ratio;
 					prev_ratio = ratio;
 				}
-				pt_insn_get_cr3(decoder, &si->cr3);
 				/* This happens when -K is used. Match everything for now. */
 				if (si->cr3 == -1L)
 					si->cr3 = 0;

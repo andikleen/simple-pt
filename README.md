@@ -81,6 +81,13 @@ Build and install libipt. This currently requires a patched version of libipt.
 
 Install libelf-elf-devel or elfutils-devel or similar depending on your distribution.
 
+Optional install udis86 if you want to see disassembled instructions:
+
+	git clone https://udis86.git.sourceforge.net/gitroot/udis86/udis86
+	cd udis86
+	./configure
+	make
+
 Clone simple-pt
 
 	git clone https://github.com/andikleen/simple-pt
@@ -94,11 +101,15 @@ Build the user tools
 
 	make user
 
+If you installed udis86 use
+
+	make user UDIS86=1
+
 Check if your system supports PT
 
 	./ptfeature
 
-Run trace
+Run a trace
 
 	sudo ./sptcmd -c ls ls
 	sudo ./sptdecode --sideband ptout.sideband --pt ptout.0 | less

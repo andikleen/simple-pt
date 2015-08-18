@@ -1,4 +1,9 @@
 USER_CFLAGS := -g -Wall
+ifeq (${UDIS86},1)
+USER_CFLAGS += -DHAVE_UDIS86 -I ../udis86/include
+UDIS86_LDFLAGS := -L ../udis86/libudis86/.libs
+UDIS86_LDLIBS := -ludis86
+endif
 LIBIPT_LIB := ../processor-trace/lib
 LIBIPT_INCLUDE := ../processor-trace/libipt/include
 
@@ -40,8 +45,10 @@ sptdecode.o: CFLAGS += -I ${LIBIPT_INCLUDE}
 elf.o: CFLAGS += -I ${LIBIPT_INCLUDE}
 dtools.o: CFLAGS += -I ${LIBIPT_INCLUDE}
 kernel.o: CFLAGS += -I ${LIBIPT_INCLUDE}
-sptdecode: LDFLAGS := -L ${LIBIPT_LIB}
-sptdecode: LDLIBS := -lipt -lelf
+sptdecode: LDFLAGS += -L ${LIBIPT_LIB}
+sptdecode: LDFLAGS += ${UDIS86_LDFLAGS}
+sptdecode: LDLIBS += ${UDIS86_LDLIBS}
+sptdecode: LDLIBS += -lipt -lelf
 sptdecode: sptdecode.o map.o elf.o symtab.o freq.o dtools.o kernel.o
 
 dumpkcore: LDLIBS += -lelf
