@@ -916,6 +916,11 @@ static int simple_pt_init(void)
 	if (err < 0)
 		return err;
 
+	/* Workaround for older kernels that don't allow trace points
+	 * for out of tree modules.
+	 */
+	THIS_MODULE->taints &= ~(1U << TAINT_OOT_MODULE);
+
 	err = misc_register(&simple_pt_miscdev);
 	if (err < 0) {
 		pr_err("Cannot register simple-pt device\n");
