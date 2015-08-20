@@ -45,8 +45,7 @@ Note that Linux 4.1 and later has an [integrated PT implementation](http://lwn.n
 of Linux perf. gdb 7.10 also supports full debugging on top of PT. [Intel VTune](https://software.intel.com/en-us/intel-vtune-amplifier-xe)
 also supports PT.
 
-If you want a full production system please use one of these. simple-pt is an experimental implementation,
-that does many things differently and may be worse.
+If you want a full production system please use one of these. simple-pt is an experimental implementation.
 
 Simple PT does *NOT* support:
 
@@ -63,7 +62,7 @@ Simple PT has the following functionality
 * set up PT filters, such as kernel filter
 * start and stop traces at specific kernel addresses
 * support tracing multiple processes
-* print all function calls
+* print all function calls in "ftrace" style
 * simple driver that could be ported to older kernel releases or other operating systems
 * simple code base that is easily changed.
 * modular "unix style" design with simple tools that do only one thing
