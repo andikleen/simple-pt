@@ -907,6 +907,13 @@ static int simple_pt_cpuid(void)
 	return 0;
 }
 
+/* Workaround for some older 3.x kernels that don't allow trace points
+ * for out of tree modules.
+ */
+
+static const char intree[]
+__used __attribute__((section(".modinfo"), unused, aligned(1))) = "intree=Y";
+
 static int simple_pt_init(void)
 {
 	int err;
@@ -915,11 +922,6 @@ static int simple_pt_init(void)
 	err = simple_pt_cpuid();
 	if (err < 0)
 		return err;
-
-	/* Workaround for older kernels that don't allow trace points
-	 * for out of tree modules.
-	 */
-	THIS_MODULE->taints &= ~(1U << TAINT_OOT_MODULE);
 
 	err = misc_register(&simple_pt_miscdev);
 	if (err < 0) {
