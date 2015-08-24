@@ -89,8 +89,9 @@ int main(int ac, char **av)
 		psb_freq_mask = (b1 >> 16) & 0xffff;
 		addr_range_num = a1 & 0x3;
 	}
+
+	unsigned a1 = 0, b1 = 0, c1 = 0, d1 = 0;
 	if (max_leaf >= 0x15) {
-		unsigned a1, b1, c1, d1;
 		__cpuid(0x15, a1, b1, c1, d1);
 		if (a1 && b1)
 			bus_freq = 1. / ((float)a1 / (float)b1);
@@ -118,6 +119,10 @@ int main(int ac, char **av)
 		printf("Valid MTC frequencies:	        ");
 		print_bits(mtc_freq_mask);
 		putchar('\n');
+		if (a1 && b1) {
+			printf("TSC ratio:		       ");
+			printf("%d %d\n", a1, b1);
+		}
 		if (bus_freq)
 			printf("Bus frequency:			%f\n", bus_freq);
 		printf("Family:				%d\n", fam);
