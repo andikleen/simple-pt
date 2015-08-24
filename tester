@@ -1,6 +1,7 @@
 #!/bin/bash
 # simple test for simple pt
 # needs to be run as root
+# tester [sptcmd opts]
 
 set -e
 set -x
@@ -16,7 +17,7 @@ export PATH=$PATH:.
 
 PREFIX=stest
 
-EXTRA=-t
+EXTRA="-t $1 $2 $3"
 
 run() {
 	sptcmd $EXTRA -o $PREFIX "$@" taskset -c 0 ./loop
