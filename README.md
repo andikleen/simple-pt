@@ -96,6 +96,10 @@ Build the kernel module. May require installing kernel includes from your distri
 
 	make 
 
+Install the kernel module
+
+	sudo make modules_install
+
 Build the user tools
 
 	make user

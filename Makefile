@@ -24,7 +24,7 @@ MANHTML := $(MAN:.man=.html)
 all:
 	${M} modules
 
-install:
+modules_install:
 	${M} modules_install
 
 clean:
