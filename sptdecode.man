@@ -13,11 +13,6 @@ and either an ELF binary with
 or the side band data listing multiple binaries with
 .I --sideband. 
 The trace file contains the trace data for a single CPU.
-The CPU to decode for can be set using
-.B --cpu
-in Family/Model format (for example 6/69). If 
-.I --cpu
-is not set the current CPU is used.
 .I --sideband
 and 
 .I --elf

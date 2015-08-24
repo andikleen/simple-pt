@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # convert spt sideband .trace and .maps files to .sideband for sptdecode
-# sptsideband.py ptout.trace [ptout.maps] > ptout.sideband
+# sptsideband.py ptout.trace [ptout.maps] [ptout.cpuid] [mtc_freq] > ptout.sideband
 
 #*
 #* Copyright (c) 2015, Intel Corporation
@@ -41,7 +41,25 @@ import sys
 ap = argparse.ArgumentParser(usage='convert spt sideband .trace and .maps files to .sideband for sptdecode')
 ap.add_argument('trace', help='trace file', type=argparse.FileType('r'))
 ap.add_argument('maps', nargs='?', help='maps file', type=argparse.FileType('r'))
+ap.add_argument('cpuid', nargs='?', help='cpuid file', type=argparse.FileType('r'))
+ap.add_argument('mtcfreq', nargs='?', help='mtc frequency')
 arguments = ap.parse_args()
+
+if arguments.cpuid:
+    for l in arguments.cpuid:
+	n = l.split()
+	if n[0] == "Family:":
+	    print "meta", "family", n[1]
+	elif n[0] == "Model:":
+	    print "meta", "model", n[1]
+	elif n[0] == "Stepping:":
+	    print "meta", "stepping", n[1]
+	elif n[0] == "TSC" and n[1] == "Ratio:":
+	    print "meta", "tsc_ratio", n[2], n[3]
+	# XXX nom_freq
+
+if arguments.mtcfreq:
+    print "meta", "mtc_freq", arguments.mtcfreq
 
 cr3s = dict()
 

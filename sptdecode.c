@@ -500,7 +500,6 @@ void usage(void)
 #if 0 /* needs more debugging */
 	fprintf(stderr, "--loop/-l	  detect loops\n");
 #endif
-	fprintf(stderr, "--cpu/-c cpuname cpu that collected the trace (in family/model/stepping)\n");
 	exit(1);
 }
 
@@ -511,18 +510,18 @@ struct option opts[] = {
 	{ "insn", no_argument, NULL, 'i' },
 	{ "sideband", required_argument, NULL, 's' },
 	{ "loop", no_argument, NULL, 'l' },
-	{ "cpu", required_argument, NULL, 'c' },
 	{ }
 };
 
 int main(int ac, char **av)
 {
+	struct pt_config config;
 	struct pt_insn_decoder *decoder = NULL;
 	struct pt_image *image = pt_image_alloc("simple-pt");
 	int c;
-	char *cpu = NULL;
 
-	while ((c = getopt_long(ac, av, "e:p:f:is:lc:", opts, NULL)) != -1) {
+	pt_config_init(&config);
+	while ((c = getopt_long(ac, av, "e:p:f:is:l", opts, NULL)) != -1) {
 		char *end;
 		switch (c) {
 		case 'e':
@@ -537,7 +536,7 @@ int main(int ac, char **av)
 				fprintf(stderr, "Only one PT file supported\n");
 				usage();
 			}
-			decoder = init_decoder(optarg, cpu);
+			decoder = init_decoder(optarg, &config);
 			break;
 		case 'f':
 			if (!strcmp(optarg, "cur")) {
@@ -556,17 +555,14 @@ int main(int ac, char **av)
 			dump_insn = 1;
 			break;
 		case 's':
-			load_sideband(optarg, image);
+			if (decoder) {
+				fprintf(stderr, "Sideband must be loaded before --pt\n");
+				exit(1);
+			}
+			load_sideband(optarg, image, &config);
 			break;
 		case 'l':
 			detect_loop = true;
-			break;
-		case 'c':
-			if (decoder) {
-				fprintf(stderr, "--cpu/-c must be before --pt\n");
-				exit(1);
-			}
-			cpu = optarg;
 			break;
 		default:
 			usage();

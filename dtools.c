@@ -35,24 +35,22 @@
 #include <errno.h>
 #include <string.h>
 #include <ctype.h>
+#include <cpuid.h>
 #include "dtools.h"
 #include "map.h"
 #include "elf.h"
 #include "symtab.h"
 
-struct pt_insn_decoder *init_decoder(char *fn, char *cpu)
+struct pt_insn_decoder *init_decoder(char *fn, struct pt_config *config)
 {
-	struct pt_config config;
 	unsigned zero = 0;
 
-	pt_config_init(&config);
-	pt_cpu_parse(&config.cpu, cpu);
-	pt_cpu_errata(&config.errata, &config.cpu);
+	pt_cpu_errata(&config->errata, &config->cpu);
 	/* When no bit is set, set all, as libipt does not keep up with newer
 	 * CPUs otherwise.
 	 */
-	if (!memcmp(&config.errata, &zero, 4))
-		memset(&config.errata,0xff, sizeof(config.errata));
+	if (!memcmp(&config->errata, &zero, 4))
+		memset(&config->errata,0xff, sizeof(config->errata));
 
 	size_t len;
 	unsigned char *map = mapfile(fn, &len);
@@ -60,10 +58,10 @@ struct pt_insn_decoder *init_decoder(char *fn, char *cpu)
 		fprintf(stderr, "Cannot open PT file %s: %s\n", fn, strerror(errno));
 		exit(1);
 	}
-	config.begin = map;
-	config.end = map + len;
+	config->begin = map;
+	config->end = map + len;
 
-	struct pt_insn_decoder *decoder = pt_insn_alloc_decoder(&config);
+	struct pt_insn_decoder *decoder = pt_insn_alloc_decoder(config);
 	if (!decoder) {
 		fprintf(stderr, "Cannot create PT decoder\n");
 		return NULL;
@@ -73,9 +71,15 @@ struct pt_insn_decoder *init_decoder(char *fn, char *cpu)
 }
 
 /* Sideband format:
+meta family num
+meta model num
+meta stepping num
+meta mtc_freq num-1
+meta num_freq num
+meta tsc_ratio eax ebx
 timestamp pid cr3 load-address off-in-file path-to-binary[:codebin]
  */
-void load_sideband(char *fn, struct pt_image *image)
+void load_sideband(char *fn, struct pt_image *image, struct pt_config *config)
 {
 	FILE *f = fopen(fn, "r");
 	if (!f) {
@@ -85,15 +89,42 @@ void load_sideband(char *fn, struct pt_image *image)
 	char *line = NULL;
 	size_t linelen = 0;
 	int lineno = 1;
-	while (getline(&line, &linelen, f) > 0) {
+	for (;getline(&line, &linelen, f) > 0; lineno++) {
 		uint64_t cr3, addr, off;
 		unsigned pid;
 		double ts;
 		int n;
 
+		if (!strncmp(line, "meta", 4)) {
+			if (sscanf(line, "meta tsc_ratio %u %u",
+					&config->cpuid_0x15_eax,
+					&config->cpuid_0x15_ebx) == 2) {
+				/* ok */
+			} else if (sscanf(line, "meta family %hu",
+					&config->cpu.family) == 1) {
+				config->cpu.vendor = pcv_intel;
+			} else if (sscanf(line, "meta model %hhu",
+					&config->cpu.model) == 1) {
+				/* ok */
+			} else if (sscanf(line, "meta stepping %hhu",
+					&config->cpu.stepping) == 1) {
+			} else if (sscanf(line, "meta mtc_freq %hhu",
+					&config->mtc_freq) == 1) {
+				if (config->mtc_freq)
+					config->mtc_freq--;
+			} else if (sscanf(line, "meta nom_freq %hhu",
+					&config->nom_freq) == 1) {
+				// XXX set tsc_freq
+				/* ok */
+			} else {
+				fprintf(stderr, "%s:%d: Unknown meta statement\n", fn, lineno);
+			}
+			continue;
+		}
+
 		if (sscanf(line, "%lf %u %lx %lx %lx %n", &ts, &pid, &cr3, &addr, &off, &n) != 5) {
 			fprintf(stderr, "%s:%d: Parse error\n", fn, lineno);
-			exit(1);
+			continue;
 		}
 		if (ts == 0 && !seen_cr3(cr3))
 			continue;
@@ -113,7 +144,6 @@ void load_sideband(char *fn, struct pt_image *image)
 		if (read_elf(line + n, image, addr, cr3)) {
 			fprintf(stderr, "Cannot read %s: %s\n", line + n, strerror(errno));
 		}
-		lineno++;
 	}
 	free(line);
 	fclose(f);
