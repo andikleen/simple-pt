@@ -62,5 +62,5 @@ static void fix_tracepoints(void)
 }
 
 #else
-static inline void fix_tracepoints(void);
+static inline void fix_tracepoints(void) {}
 #endif
