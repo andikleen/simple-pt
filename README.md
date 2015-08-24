@@ -169,6 +169,24 @@ trace.
 * [fastdecode](http://halobates.de/spt-man/fastdecode.html)
 * [sptdump](http://halobates.de/spt-man/sptdump.html)
 
+# Changing the PT buffer sizes
+
+To change the PT buffer size the driver needs to be loaded manually. The PT
+buffer size can be changed with the pt_buffer_order parameter.
+
+	rmmod simple_pt # if it was loaded
+	modprobe simple_pt pt_buffer_order=10
+
+The size is specified in 2^n 4K pages. The default is 9 (2MB). The maximum limit
+is the kernel's MAX_ORDER limit, typically 8MB. The allocation may also fail
+if the kernel memory is too fragmented. In this case quiting a large process
+may help.
+
+When ptfeature shows the "multiple toPA entries" feature it is possible to
+allocate multiple PT buffers with the pt_num_buffers parameter. All the buffers
+are logically concatenated. The default is one buffer. The maximum is 511
+buffers.
+
 # Notes
 
 * To limit the program to one CPU use sptcmd taskset -c CPU ..
@@ -180,14 +198,14 @@ trace.
   over the PT hardware with --force -d.
 * When configuring the driver manually you need to manually reset any parameters you do not want anymore.
   sptcmd takes care of that automatically.
-
 # Limitations:
 
 * When kernel tracing is disabled (-K) multiple processes cannot be distinguished by the decoder.
 
 * Enabling/Disabling tracing causes the kernel to modify itself, which can cause the PT decoder
-  to lose synchronization. sptcmd disables trace points. Use --no-kernel when needed. This can sometimes affect the
-  test suite.
+  to lose synchronization. sptcmd disables trace points. Workaround is to keep trace points
+  running after the trace ends with -k, or disable kernel tracing. his can sometimes affect the
+  test suite. If this happens try "tester -k"
 
 * sptcmd does not continuously save side band data, so events at the beginning
   of a trace may not be saved. For complex workloads it may be needed to increase the trace buffers 
