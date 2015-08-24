@@ -422,7 +422,7 @@ static int start_pt(void)
 	if (cyc_thresh && ((1U << (cyc_thresh-1)) & cyc_thresh_mask))
 		val |= ((cyc_thresh - 1) << 19) | CYC_EN;
 	if (mtc_freq && ((1U << mtc_freq) & mtc_freq_mask))
-		val |= (mtc_freq  << 14) | MTC_EN;
+		val |= ((mtc_freq - 1) << 14) | MTC_EN;
 	if (psb_freq && ((1U << psb_freq) & (psb_freq_mask-1)))
 		val |= (psb_freq - 1) << 24;
 	if (addr0_cfg && (addr0_cfg <= addr_cfg_max) && addr_range_num >= 1) {
