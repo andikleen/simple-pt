@@ -895,6 +895,8 @@ static int simple_pt_cpuid(void)
 		addr_cfg_max = 2;
 	if (!(c & BIT(1)))
 		pt_num_buffers = 1;
+	pt_num_buffers = min_t(unsigned, pt_num_buffers,
+			       (PAGE_SIZE / 8) - 1);
 	a1 = b1 = c1 = d1 = 0;
 	if (a >= 1)
 		cpuid_count(0x14, 1, &a1, &b1, &c1, &d1);
