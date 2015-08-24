@@ -55,12 +55,22 @@ int main(int ac, char **av)
 	int addr_range_num = 0;
 	unsigned max_leaf;
 	float bus_freq;
+	unsigned fam, mod, stepping;
 
 	max_leaf = __get_cpuid_max(0, NULL);
 	if (max_leaf < 0x14) {
 		printf("No PT support\n");
 		return 1;
 	}
+
+	__cpuid(1, a, b, c, d);
+	stepping = a & 0xf;
+	mod = (a >> 4) & 0xf;
+	fam = (a >> 8) & 0xf;
+	if (fam == 0xf)
+		fam += (a >> 20) & 0xff;
+	if (fam == 6 || fam == 0xf)
+		mod += ((a >> 16) & 0xf) << 4;
 
 	/* check cpuid */
 	__cpuid_count(0x07, 0, a, b, c, d);
@@ -110,6 +120,9 @@ int main(int ac, char **av)
 		putchar('\n');
 		if (bus_freq)
 			printf("Bus frequency:			%f\n", bus_freq);
+		printf("Family:				%d\n", fam);
+		printf("Model:				%d\n", mod);
+		printf("Stepping:			%d\n", stepping);
 		return 0;
 	}
 
