@@ -157,7 +157,7 @@ int main(int ac, char **av)
 		print_bits(mtc_freq_mask);
 		putchar('\n');
 		if (a1 && b1) {
-			printf("TSC ratio:		       ");
+			printf("TSC ratio:		        ");
 			printf("%d %d\n", a1, b1);
 		}
 		if (bus_freq)
