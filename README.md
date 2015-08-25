@@ -198,6 +198,7 @@ buffers.
   over the PT hardware with --force -d.
 * When configuring the driver manually you need to manually reset any parameters you do not want anymore.
   sptcmd takes care of that automatically.
+
 # Limitations:
 
 * When kernel tracing is disabled (-K) multiple processes cannot be distinguished by the decoder.
