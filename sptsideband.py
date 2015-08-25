@@ -56,7 +56,8 @@ if arguments.cpuid:
 	    print "meta", "stepping", n[1]
 	elif n[0] == "TSC" and n[1] == "Ratio:":
 	    print "meta", "tsc_ratio", n[2], n[3]
-	# XXX nom_freq
+        elif n[0] == "Max" and n[1] == "non" and n[2] == "Turbo" and n[3] == "Ratio:":
+            print "meta", "nom_freq", n[4]
 
 if arguments.mtcfreq:
     print "meta", "mtc_freq", arguments.mtcfreq

@@ -31,11 +31,48 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define _GNU_SOURCE 1
 #include <stdio.h>
 #include <cpuid.h>
 #include <string.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <sys/fcntl.h>
+#include <sched.h>
+#include <errno.h>
 
 #define BIT(x) (1ULL << (x))
+
+static int read_msr(int cpu, unsigned num, uint64_t *val)
+{
+	int ret = -1;
+	char fn[100];
+	snprintf(fn, sizeof fn, "/dev/cpu/%d/msr", cpu);
+	int fd = open(fn, O_RDONLY);
+	if (fd < 0)
+		return -1;
+	if (pread(fd, val, 8, num) == 8)
+		ret = 0;
+	close(fd);
+	return ret;
+}
+
+static int read_platform_info(unsigned *ratio)
+{
+	cpu_set_t cpus;
+	sched_getaffinity(0, sizeof(cpu_set_t), &cpus);
+	int cpu;
+	for (cpu = 0; cpu < __CPU_SETSIZE; cpu++) {
+		uint64_t pinfo;
+		if (read_msr(cpu, 0xce, &pinfo) == 0) {
+			*ratio = (pinfo >> 8) & 0xff;
+			break;
+		}
+		if (errno == EACCES || errno == ENOENT)
+			break;
+	}
+	return 0;
+}
 
 static void print_bits(unsigned x)
 {
@@ -125,6 +162,9 @@ int main(int ac, char **av)
 		}
 		if (bus_freq)
 			printf("Bus frequency:			%f\n", bus_freq);
+		unsigned pinfo;
+		if (read_platform_info(&pinfo) == 0)
+			printf("Max non Turbo Ratio:	        %u\n", pinfo);
 		printf("Family:				%d\n", fam);
 		printf("Model:				%d\n", mod);
 		printf("Stepping:			%d\n", stepping);
