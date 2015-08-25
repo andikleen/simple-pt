@@ -212,6 +212,11 @@ buffers.
   of a trace may not be saved. For complex workloads it may be needed to increase the trace buffers 
   in /sys/kernel/debug/tracing/buffer_size_kb
 
+* The decoder does not (currently) support reusing the same address region in a process for
+  different code (for example after dlclose/dlopen)
+
+* Tracing JITed code is not supported.
+
 * Decoder loses synchronization in some cases where it shouldn't.
 
 # Contact
