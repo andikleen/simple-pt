@@ -145,7 +145,7 @@ static void print_ip(uint64_t ip, unsigned long cr3)
 
 double tsc_freq;
 
-static double tsc_us(uint64_t t)
+static double tsc_us(int64_t t)
 {
 	if (tsc_freq == 0)
 		return t;
@@ -165,7 +165,7 @@ static void print_time(uint64_t ts, uint64_t *last_ts,uint64_t *first_ts)
 	if (!*last_ts)
 		*last_ts = ts;
 	double rtime = tsc_us(ts - *first_ts);
-	snprintf(buf, sizeof buf, "%-9.*f [+%-.*f]", tsc_freq ? 3 : 0,
+	snprintf(buf, sizeof buf, "%-9.*f [%+-.*f]", tsc_freq ? 3 : 0,
 			rtime,
 			tsc_freq ? 3 : 0,
 			tsc_us(ts - *last_ts));
