@@ -41,6 +41,8 @@
 #include "elf.h"
 #include "symtab.h"
 
+double tsc_freq;
+
 struct pt_insn_decoder *init_decoder(char *fn, struct pt_config *config)
 {
 	unsigned zero = 0;
@@ -114,8 +116,7 @@ void load_sideband(char *fn, struct pt_image *image, struct pt_config *config)
 					config->mtc_freq--;
 			} else if (sscanf(line, "meta nom_freq %hhu",
 					&config->nom_freq) == 1) {
-				// XXX set tsc_freq
-				/* ok */
+				tsc_freq = config->nom_freq / 10.0;
 			} else {
 				fprintf(stderr, "%s:%d: Unknown meta statement\n", fn, lineno);
 			}

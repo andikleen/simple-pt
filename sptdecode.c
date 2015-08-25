@@ -44,7 +44,6 @@
 #include "map.h"
 #include "elf.h"
 #include "symtab.h"
-#include "freq.h"
 #include "dtools.h"
 #include "kernel.h"
 
@@ -142,8 +141,6 @@ static void print_ip(uint64_t ip, unsigned long cr3)
 	} else
 		printf("%lx", ip);
 }
-
-double tsc_freq;
 
 static double tsc_us(int64_t t)
 {
@@ -495,8 +492,8 @@ void usage(void)
 	fprintf(stderr, "-e/--elf binary[:codebin]  ELF input PT files. Can be specified multiple times.\n");
 	fprintf(stderr, "                   When codebin is specified read code from codebin\n");
 	fprintf(stderr, "-s/--sideband log  Load side band log. Needs access to binaries\n");
-	fprintf(stderr, "--freq/-f freq   Use frequency to convert time stamps (Ghz). cur for current system.\n");
 	fprintf(stderr, "--insn/-i        dump instruction bytes\n");
+	fprintf(stderr, "--tsc/-t	  print time as TSC\n");
 #if 0 /* needs more debugging */
 	fprintf(stderr, "--loop/-l	  detect loops\n");
 #endif
@@ -506,10 +503,10 @@ void usage(void)
 struct option opts[] = {
 	{ "elf", required_argument, NULL, 'e' },
 	{ "pt", required_argument, NULL, 'p' },
-	{ "freq", required_argument, NULL, 'f' },
 	{ "insn", no_argument, NULL, 'i' },
 	{ "sideband", required_argument, NULL, 's' },
 	{ "loop", no_argument, NULL, 'l' },
+	{ "tsc", no_argument, NULL, 't' },
 	{ }
 };
 
@@ -519,10 +516,10 @@ int main(int ac, char **av)
 	struct pt_insn_decoder *decoder = NULL;
 	struct pt_image *image = pt_image_alloc("simple-pt");
 	int c;
+	bool use_tsc_time = false;
 
 	pt_config_init(&config);
-	while ((c = getopt_long(ac, av, "e:p:f:is:l", opts, NULL)) != -1) {
-		char *end;
+	while ((c = getopt_long(ac, av, "e:p:is:lt", opts, NULL)) != -1) {
 		switch (c) {
 		case 'e':
 			if (read_elf(optarg, image, 0, 0) < 0) {
@@ -538,19 +535,6 @@ int main(int ac, char **av)
 			}
 			decoder = init_decoder(optarg, &config);
 			break;
-		case 'f':
-			if (!strcmp(optarg, "cur")) {
-				tsc_freq = get_freq();
-				if (!tsc_freq) {
-					fprintf(stderr, "Cannot get frequency\n");
-					exit(1);
-				}
-			} else {
-				tsc_freq = strtod(optarg, &end);
-				if (end == optarg)
-					usage();
-			}
-			break;
 		case 'i':
 			dump_insn = 1;
 			break;
@@ -564,10 +548,15 @@ int main(int ac, char **av)
 		case 'l':
 			detect_loop = true;
 			break;
+		case 't':
+			use_tsc_time = true;
+			break;
 		default:
 			usage();
 		}
 	}
+	if (use_tsc_time)
+		tsc_freq = 0;
 	if (decoder) {
 	  	read_kernel(image);
 		pt_insn_set_image(decoder, image);

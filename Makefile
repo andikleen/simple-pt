@@ -8,7 +8,7 @@ LIBIPT_LIB := ../processor-trace/lib
 LIBIPT_INCLUDE := ../processor-trace/libipt/include
 
 USER_OBJS := sptdump.o map.o fastdecode.o sptdecode.o dumpkcore.o \
-	     elf.o symtab.o freq.o dtools.o kernel.o ptfeature.o
+	     elf.o symtab.o dtools.o kernel.o ptfeature.o
 USER_EXE := sptdump fastdecode sptdecode ptfeature # dumpkcore
 MAN := sptdump.man fastdecode.man sptdecode.man ptfeature.man sptcmd.man \
 	sptarchive.man
@@ -49,7 +49,7 @@ sptdecode: LDFLAGS += -L ${LIBIPT_LIB}
 sptdecode: LDFLAGS += ${UDIS86_LDFLAGS}
 sptdecode: LDLIBS += ${UDIS86_LDLIBS}
 sptdecode: LDLIBS += -lipt -lelf
-sptdecode: sptdecode.o map.o elf.o symtab.o freq.o dtools.o kernel.o
+sptdecode: sptdecode.o map.o elf.o symtab.o dtools.o kernel.o
 
 dumpkcore: LDLIBS += -lelf
 
