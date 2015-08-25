@@ -60,6 +60,7 @@ static int read_msr(int cpu, unsigned num, uint64_t *val)
 
 static int read_platform_info(unsigned *ratio)
 {
+	int ret = -1;
 	cpu_set_t cpus;
 	sched_getaffinity(0, sizeof(cpu_set_t), &cpus);
 	int cpu;
@@ -67,12 +68,13 @@ static int read_platform_info(unsigned *ratio)
 		uint64_t pinfo;
 		if (read_msr(cpu, 0xce, &pinfo) == 0) {
 			*ratio = (pinfo >> 8) & 0xff;
+			ret = 0;
 			break;
 		}
-		if (errno == EACCES || errno == ENOENT)
+		if (errno == EACCES)
 			break;
 	}
-	return 0;
+	return ret;
 }
 
 static void print_bits(unsigned x)
