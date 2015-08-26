@@ -10,3 +10,6 @@ If a feature is specified on the command line it return a non-zero exit code if 
 .PP
 Valid features are: pt, filter, stop, cyc, psb, mtc, pt, topa, multi_topa, single_range, lip,
 mtc_freq number psb_freq number cyc_thresh number
+.SH NOTES
+MTC, PSB, CYC values are printed in simple-pt format, which is one larger than the native hardware
+register format.
