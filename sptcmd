@@ -40,7 +40,10 @@ Following flags are not supported on Broadwell:
 --stop-range -S start,end  Stop trace when reaching virtual address start-end. Can be kernel
 	      symbols. Two ranges allowed (shared with -F)
 EOU
+	exit 1
 }
+
+PATH=$PATH:$(dirname $0)
 
 unset COMM KERNEL TRACE USERMODE DISRETC DRIVER DONTDUMP PREFIX ENUMALL
 unset CYC_THRESH MTC_FREQ PSB_FREQ FILTER TSTOP START STOP FORCE KEEP
@@ -98,9 +101,15 @@ while getopts "c:KtURkfdNo:eC:M:P:F:S:s:y:@" opt ${ARGS[@]} ; do
 	o) PREFIX="$OPTARG" ;;
 	e) ENUMALL=1 ;;
 	k) KEEP=1 ;;
-	C) CYC_THRESH="$OPTARG" ;;
-	M) MTC_FREQ="$OPTARG" ;;
-	P) PSB_FREQ="$OPTARG" ;;
+	C) CYC_THRESH="$OPTARG"
+	   ptfeature cyc_thresh $CYC_THRESH || usage
+	   ;;
+	M) MTC_FREQ="$OPTARG"
+	   ptfeature mtc_freq $MTC_FREQ || usage
+	   ;;
+	P) PSB_FREQ="$OPTARG"
+	   ptfeature psb_freq $PSB_FREQ || usage
+	   ;;
 	F) IFS=, read st end <<< "$OPTARG"
 	   RANGE_START[$NUM_RANGE]=$st
 	   RANGE_END[$NUM_RANGE]=$end
@@ -149,8 +158,6 @@ if [ "$EUID" -ne 0 ] ; then
 	echo >&2 sptcmd needs to run as root
 	exit 1
 fi
-
-PATH=$PATH:$(dirname $0)
 
 [ -n "$DRIVER" ] && /sbin/rmmod simple_pt
 if ! lsmod | grep -q simple_pt ; then
