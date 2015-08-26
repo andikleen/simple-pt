@@ -245,8 +245,10 @@ static GElf_Phdr *read_phdrs(Elf *kelf, size_t *numphdr)
 	GElf_Phdr *phdr = calloc(*numphdr, sizeof(GElf_Phdr));
 	int i;
 	for (i = 0; i < *numphdr; i++) {
-		if (!gelf_getphdr(kelf, i, &phdr[i]))
+		if (!gelf_getphdr(kelf, i, &phdr[i])) {
+			free(phdr);
 			return NULL;
+		}
 	}
 	return phdr;
 }
