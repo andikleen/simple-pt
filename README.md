@@ -75,7 +75,7 @@ Build and install libipt. This currently requires a patched version of libipt.
 	cd processor-trace
 	cmake .
 	make
-	cp lib/libipt.so* /usr/local/lib64      # or lib depending on your system
+	sudo make install
 	sudo ldconfig
 
 Install libelf-elf-devel or elfutils-devel or similar depending on your distribution.
