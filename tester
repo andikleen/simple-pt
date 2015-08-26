@@ -12,7 +12,7 @@ failed() {
 }
 trap failed ERR 0
 
-export LD_LIBRARY_PATH=$(pwd)/../processor-trace/lib
+#export LD_LIBRARY_PATH=$(pwd)/../processor-trace/lib
 export PATH=$PATH:.
 
 PREFIX=stest
