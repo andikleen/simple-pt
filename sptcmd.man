@@ -110,9 +110,13 @@ option disables dumping of the trace data.
 .PP
 .B --msr-trace
 enables tracing all PT configuration register accesses done by the driver.
-The resulting trace is put into
+.PP
+.B --print-regs
+prints the PT registers at the end of the trace.
+
+The resulting trace is put into the
 .I prefix.trace
-and can decoded with
+file and can decoded with
 .B spttrace.
 This is mainly useful for driver debugging.
 The

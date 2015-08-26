@@ -28,6 +28,7 @@ sptcmd [options] cmd
 --stop-addr addr -y addr
 	      Stop trace on CPU when kernel symbol stop is hit. Can be address
 	      or sym+offset
+--print-regs  Print PT register setup
 
 Following flags are not supported on Broadwell:
 
@@ -43,6 +44,7 @@ EOU
 
 unset COMM KERNEL TRACE USERMODE DISRETC DRIVER DONTDUMP PREFIX ENUMALL
 unset CYC_THRESH MTC_FREQ PSB_FREQ FILTER TSTOP START STOP FORCE KEEP
+unset PRINT_REGS
 declare -a RANGE_START RANGE_END RANGE_CFG
 NUM_RANGE=0
 MAX_RANGE=2
@@ -76,13 +78,14 @@ for ((j = 0; j < $#; j++)) ; do
 	--stop-range) ARGS[$j]=-S ;;
 	--start-addr) ARGS[$j]=-s ;;
 	--stop-addr) ARGS[$j]=-y ;;
+	--print-regs) ARGS[$j]="-@" ; PRINT_REGS=1 ;;
 	--) ARGS[$j]=${ARGS[$j]}; B=1 ;;
 	--*) usage ; exit 1 ;;
 	*) ARGS[$j]="${ARGS[$j]}" ;;
 	esac
 done
 
-while getopts "c:KtURkfdNo:eC:M:P:F:S:s:y:" opt ${ARGS[@]} ; do
+while getopts "c:KtURkfdNo:eC:M:P:F:S:s:y:@" opt ${ARGS[@]} ; do
 	case "$opt" in
 	c) COMM="$OPTARG" ; ENUMDFL=0 ;;
 	K) KERNEL=0 ;;
@@ -112,6 +115,7 @@ while getopts "c:KtURkfdNo:eC:M:P:F:S:s:y:" opt ${ARGS[@]} ; do
 	   ;;
 	s) START="$OPTARG" ;;
 	y) STOP="$OPTARG" ;;
+	@) ;;
 	\?) usage ; exit 1 ;;
 	*) break ;;
 	esac
@@ -134,6 +138,7 @@ START=${START:-0}
 STOP=${STOP:-0}
 FORCE=${FORCE:-0}
 KEEP=${KEEP:-}
+PRINT_REGS=${PRINT_REGS:-0}
 
 if [ "$KERNEL" != 1 -a "$COMM" = "" ] ; then
 	echo >&2 WARNING Using -K without a -c filter.
@@ -192,6 +197,9 @@ else
 fi
 echo 1 > $C/start
 "$@"
+if [ "$PRINT_REGS" != 0 ] ; then
+	ptregs
+fi
 echo 0 > $C/start
 if [ -z "$KEEP" ] ; then
 	echo 0 > $T/events/pttp/exec_cr3/enable
