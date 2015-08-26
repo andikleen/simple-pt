@@ -8,4 +8,5 @@ ptfeature [feature ...]
 shows the Intel Processor Trace (PT) features supported by the current CPU.
 If a feature is specified on the command line it return a non-zero exit code if the feature is not supported.
 .PP
-Valid features are: pt, filter, stop, cyc, psb, mtc, pt, topa, multi_topa, single_range, lip
+Valid features are: pt, filter, stop, cyc, psb, mtc, pt, topa, multi_topa, single_range, lip,
+mtc_freq number psb_freq number cyc_thresh number

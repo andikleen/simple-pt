@@ -40,6 +40,7 @@
 #include <sys/fcntl.h>
 #include <sched.h>
 #include <errno.h>
+#include <stdlib.h>
 
 #define BIT(x) (1ULL << (x))
 
@@ -82,6 +83,27 @@ static void print_bits(unsigned x)
 			printf("%d ", i);
 }
 
+static void usage(void)
+{
+	fprintf(stderr, "When no argument print all\n");
+	fprintf(stderr, "Valid matches: pt, filter, stop, cyc, psb, mtc, pt, topa, multi_topa, single_range, lip\n");
+	fprintf(stderr, "               mtc_freq number psb_freq number cyc_thresh number\n");
+	exit(1);
+}
+
+unsigned getnum(char ***avp)
+{
+	char **av = *avp;
+	if (*++av == NULL)
+		usage();
+	char *end;
+	unsigned num = strtoul(*av, &end, 0);
+	if (*end)
+		usage();
+	*avp = av;
+	return num;
+}
+
 int main(int ac, char **av)
 {
 	unsigned a, b, c, d;
@@ -93,6 +115,7 @@ int main(int ac, char **av)
 	unsigned max_leaf;
 	float bus_freq;
 	unsigned fam, mod, stepping;
+	unsigned num;
 
 	max_leaf = __get_cpuid_max(0, NULL);
 	if (max_leaf < 0x14) {
@@ -219,9 +242,27 @@ int main(int ac, char **av)
 				printf("Payloads are not LIP\n");
 				return 1;
 			}
+		} else if (!strcmp(*av, "mtc_freq")) {
+			num = getnum(&av);
+			if (!(BIT(num - 1) & mtc_freq_mask)) {
+				printf("MTC Freq %u not supported\n", num);
+				return 1;
+			}
+		} else if (!strcmp(*av, "cyc_thresh")) {
+			num = getnum(&av);
+			if (!(BIT(num - 1) & cyc_thresh_mask)) {
+				printf("CYC Thresh %u not supported\n", num);
+				return 1;
+			}
+		} else if (!strcmp(*av, "psb_freq")) {
+			num = getnum(&av);
+			if (!(BIT(num - 1) & psb_freq_mask)) {
+				printf("PSB Freq %u not supported\n", num);
+				return 1;
+			}
 		} else {
 			fprintf(stderr, "Unknown match %s\n", *av);
-			fprintf(stderr, "Valid matches: pt, filter, stop, cyc, psb, mtc, pt, topa, multi_topa, single_range, lip\n");
+			usage();
 			return 1;
 		}
 	}
