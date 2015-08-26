@@ -86,8 +86,6 @@ static struct module *findmod(char *name)
 	return NULL;
 }
 
-
-// xxx unnecessary with side band
 static void read_modules(Elf *elf)
 {
 	FILE *f = fopen("/proc/modules", "r");
@@ -103,8 +101,10 @@ static void read_modules(Elf *elf)
 		int len;
 
 		// scsi_dh_hp_sw 12895 0 - Live 0xffffffffa005e000
-		if (sscanf(line, "%100s %d %*d %*s %*s %llx", mname, &len, &addr) != 3)
+		if (sscanf(line, "%100s %d %*d %*s %*s %llx", mname, &len, &addr) != 3) {
+			fprintf(stderr, "failed to parse: %s", line);
 			continue;
+		}
 		struct module *mod = newmod(elf, mname, false);
 		mod->start = addr;
 		mod->end = addr + len;
@@ -124,9 +124,16 @@ static struct module *kernel_mod(Elf *elf,
 	} else if (!strcmp(name, "_etext")) {
 		assert(mod != NULL);
 		mod->end = addr;
-		mod = NULL;
 	}
 	return mod;
+}
+
+static int cmp_sym(const void *ap, const void *bp)
+{
+	const struct sym *a = ap;
+	const struct sym *b = bp;
+
+	return a->val - b->val;
 }
 
 static void read_symbols(Elf *elf)
@@ -136,39 +143,44 @@ static void read_symbols(Elf *elf)
 		perror("/proc/kallsyms");
 		return;
 	}
-	struct module *mod = NULL;
+	struct module *mod;
 	unsigned long long addr = 0;
 	unsigned long long kend = 0, kstart = -1ULL;
-	
+	char name[300], mname[100];
+	char type;
+	int n;
+	struct module *kmod = NULL;
+
 	char *line = NULL;
 	size_t linelen = 0;
 
-	/* step 1: count lines */
+	/* step 1: count lines and set up kernel_mod */
 	int numsyms = 0;
-	while (getline(&line, &linelen, f) > 0)
+	while (getline(&line, &linelen, f) > 0) {
+		if ((n = sscanf(line, "%llx %1c %300s [%100s", &addr, &type, name, mname)) < 3)
+			continue;
+		/* handle stext,etext */
+		kmod = kernel_mod(elf, kmod, name, addr);
 		numsyms++;
+	}
 
+	if (!kmod) {
+		fprintf(stderr, "Cannot find kernel text in kallsyms\n");
+		return;
+	}
 	rewind(f);
 	
 	struct symtab *ksymtab = add_symtab(numsyms, 0, 0);
 
 	int sindex = 0;
 	while (getline(&line, &linelen, f) > 0 && sindex < numsyms) {
-		char type;
-		char name[300], mname[100];
-		int n;
-
 		if ((n = sscanf(line, "%llx %1c %300s [%100s", &addr, &type, name, mname)) < 3)
 			continue;
-
-		/* handle stext,etext, modules */
-		bool has_module = n > 3;
-		mod = kernel_mod(elf, mod, name, addr);
 
 		if (tolower(type) != 't')
 			continue;
 
-		if (has_module) {
+		if (n > 3) {
 			char *p = strchr(mname, ']');
 			if (p)
 				*p = 0;
@@ -185,13 +197,9 @@ static void read_symbols(Elf *elf)
 					continue;
 				}
 			}
-		}
-		if (!mod)
-			continue;
+		} else
+			mod = kmod;
 
-		if (sindex > 0)
-			ksymtab->syms[sindex - 1].size = addr - ksymtab->syms[sindex - 1].val;
-		
 		struct sym *sym = &ksymtab->syms[sindex];
 		sym->name = strdup(name);
 		sym->val = addr;
@@ -205,9 +213,19 @@ static void read_symbols(Elf *elf)
 	ksymtab->num = sindex;	
 	ksymtab->end = kend;
 	ksymtab->base = kstart;
+
 	free(line);
 	fclose(f);
 
+	/* sort kallsyms */
+	qsort(ksymtab->syms, sindex, sizeof(struct sym), cmp_sym);
+
+	/* Compute symbol sizes */
+	int i;
+	for (i = 1; i < sindex; i++) {
+		struct sym *sym = ksymtab->syms + i;
+		(sym - 1)->size = sym->val - (sym - 1)->val;
+	}
 }
 
 static GElf_Phdr *find_phdr(GElf_Phdr *phdrs, int numphdr, unsigned long start, unsigned long end)
