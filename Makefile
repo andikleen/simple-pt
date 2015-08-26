@@ -27,8 +27,12 @@ all:
 modules_install:
 	${M} modules_install
 
-clean:
+clean: user-clean kernel-clean
+
+kernel-clean:
 	${M} clean
+
+user-clean:
 	rm -rf ${USER_EXE} ${USER_OBJS} loop stest.* ${MANHTML}
 
 ${USER_OBJS}: CFLAGS := ${USER_CFLAGS}
