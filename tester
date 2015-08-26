@@ -59,7 +59,7 @@ if ./ptfeature stop ; then
 fi
 
 if ./ptfeature cyc psb mtc ; then
-	run --cyc 1 --mtc 3 --psb 1
+	run --cyc 1 --mtc 1 --psb 1
 	grep -q main stest.out
 fi
 

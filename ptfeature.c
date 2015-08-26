@@ -77,12 +77,12 @@ static int read_platform_info(unsigned *ratio)
 	return ret;
 }
 
-static void print_bits(unsigned x)
+static void print_bits(unsigned x, unsigned off)
 {
 	int i;
 	for (i = 0; i < 32; i++)
 		if (BIT(i) & x)
-			printf("%d ", i);
+			printf("%d ", i + off);
 }
 
 static void usage(void)
@@ -173,13 +173,13 @@ int main(int ac, char **av)
 		printf("Supports filter ranges:		%d\n", addr_cfg_max >= 1);
 		printf("Supports stop ranges:		%d\n", addr_cfg_max >= 2);
 		printf("Valid cycles thresholds:	");
-		print_bits(cyc_thresh_mask);
+		print_bits(cyc_thresh_mask, 1);
 		putchar('\n');
 		printf("Valid PSB frequencies:		");
-		print_bits(psb_freq_mask);
+		print_bits(psb_freq_mask, 1);
 		putchar('\n');
 		printf("Valid MTC frequencies:	        ");
-		print_bits(mtc_freq_mask);
+		print_bits(mtc_freq_mask, 1);
 		putchar('\n');
 		if (a1 && b1) {
 			printf("TSC ratio:		        ");
