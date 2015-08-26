@@ -565,5 +565,7 @@ int main(int ac, char **av)
 		usage();
 	print_header();
 	decode(decoder);
+	pt_image_free(image);
+	pt_insn_free_decoder(decoder);
 	return 0;
 }
