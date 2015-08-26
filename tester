@@ -21,7 +21,7 @@ EXTRA="-t $1 $2 $3"
 
 run() {
 	sptcmd $EXTRA -o $PREFIX "$@" taskset -c 0 ./loop
-	sptdecode --sideband ${PREFIX}.sideband --pt ${PREFIX}.0 $DARGS > ${PREFIX}.out
+	$V sptdecode --sideband ${PREFIX}.sideband --pt ${PREFIX}.0 $DARGS > ${PREFIX}.out
 }
 
 gcc -o loop loop.c -g
