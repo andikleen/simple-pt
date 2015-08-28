@@ -452,18 +452,20 @@ static void do_start_pt(void *arg)
 static void stop_pt(void *arg)
 {
 	u64 offset;
-	u64 val;
+	u64 ctl, status;
 
 	if (!__this_cpu_read(pt_running))
 		return;
-	pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val);
-	if (!(val & TRACE_EN))
-		pr_info("cpu %d, trace was not enabled on stop, ctl %llx\n",
-				raw_smp_processor_id(), val);
-	pt_rdmsrl_safe(MSR_IA32_RTIT_STATUS, &val);
-	if (val & PT_ERROR)
+	pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &ctl);
+	pt_rdmsrl_safe(MSR_IA32_RTIT_STATUS, &status);
+	if (!(ctl & TRACE_EN))
+		pr_info("cpu %d, trace was not enabled on stop, ctl %llx, status %llx\n",
+				raw_smp_processor_id(), ctl, status);
+	if (status & PT_ERROR) {
 		pr_info("cpu %d, error happened: status %llx\n",
-				raw_smp_processor_id(), val);
+				raw_smp_processor_id(), status);
+		pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0);
+	}
 	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, 0LL);
 	pt_rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
 	__this_cpu_write(pt_offset, offset >> 32);
