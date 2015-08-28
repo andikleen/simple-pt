@@ -506,6 +506,10 @@ static void do_enumerate_all(void)
 	struct task_struct *t;
 	/* XXX, better way? */
 	rwlock_t *my_tasklist_lock = (rwlock_t *)kallsyms_lookup_name("tasklist_lock");
+	if (!my_tasklist_lock) {
+		pr_err("Cannot find tasklist_lock\n");
+		return;
+	}
 
 	read_lock(my_tasklist_lock);
 	for_each_process (t) {
