@@ -5,30 +5,30 @@ import re
 import sys
 
 msrmap = {
-560: "RTIT_OUTPUT_BASE",
-561: "RTIT_OUTPUT_MASK_PTRS",
-570: "RTIT_CTL",
-571: "RTIT_STATUS",
-572: "CR3_MATCH",
-580: "ADDR0_START",
-581: "ADDR0_END",
-582: "ADDR1_START",
-583: "ADDR1_END",
+    560: "RTIT_OUTPUT_BASE",
+    561: "RTIT_OUTPUT_MASK_PTRS",
+    570: "RTIT_CTL",
+    571: "RTIT_STATUS",
+    572: "CR3_MATCH",
+    580: "ADDR0_START",
+    581: "ADDR0_END",
+    582: "ADDR1_START",
+    583: "ADDR1_END",
 }
 
 msrbits = {
-	570: { 0: "TraceEN", 1: "CYCEn", 2: "OS", 3: "User", 6: "FabricEn",
-	       7: "CR3Filter", 8: "ToPA", 9: "MTCEn", 10: "TSCEn",
-	       11: "DisRetC", 13: "BranchEn" },
-	571: { 0: "FilterEn", 1: "ContextEn", 2: "TriggerEn", 4: "Error",
-	       5: "Stopped", },
+    570: { 0: "TraceEN", 1: "CYCEn", 2: "OS", 3: "User", 6: "FabricEn",
+           7: "CR3Filter", 8: "ToPA", 9: "MTCEn", 10: "TSCEn",
+	   11: "DisRetC", 13: "BranchEn" },
+    571: { 0: "FilterEn", 1: "ContextEn", 2: "TriggerEn", 4: "Error",
+	   5: "Stopped", },
 }
 
-msr_nums = {
-	570: ((14, 17, "MTCFreq"), (19,22, "CYCThresh"), (24, 27, "PSBFreq"),
-	      (32, 35, "Addr0"), (36, 39, "Addr1"), (40, 43, "Addr2"),
-	      (44, 47, "Addr3")),
-	571: ((32, 48, "PacketByteCnt"), )
+msrfields = {
+    570: ((14, 17, "MTCFreq"), (19,22, "CYCThresh"), (24, 27, "PSBFreq"),
+	  (32, 35, "Addr0"), (36, 39, "Addr1"), (40, 43, "Addr2"),
+	  (44, 47, "Addr3")),
+    571: ((32, 48, "PacketByteCnt"), )
 }
 
 for l in sys.stdin:
@@ -42,13 +42,13 @@ for l in sys.stdin:
 	    for j in msrbits[mnum].keys():
 		if mval & (1 << j):
 		    print msrbits[mnum][j],
-		    mval = mval & ~(1<<j)
-	    if mnum in msr_nums:
-		for j in msr_nums[mnum]:
-		    mask = ((1 << (j[1] - j[0]))-1) << j[0]
-		    if mval & mask:
-			print (mval & mask) >> j[0],
-			mval = mval & ~mask
-	    if mval:
-		print "rest: %x" % mval,
+                    mval = mval & ~(1<<j)
+	if mnum in msrfields:
+	    for j in msrfields[mnum]:
+	        mask = ((1 << (j[1] - j[0]))-1) << j[0]
+		if mval & mask:
+		    print (mval & mask) >> j[0],
+		    mval = mval & ~mask
+	if mval and (mnum in msrfields or mnum in msrbits):
+	    print "not decoded: %x" % mval,
 	print
