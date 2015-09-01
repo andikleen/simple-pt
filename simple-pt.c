@@ -459,7 +459,7 @@ static void stop_pt(void *arg)
 	pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &ctl);
 	pt_rdmsrl_safe(MSR_IA32_RTIT_STATUS, &status);
 	if (!(ctl & TRACE_EN))
-		pr_info("cpu %d, trace was not enabled on stop, ctl %llx, status %llx\n",
+		pr_debug("cpu %d, trace was not enabled on stop, ctl %llx, status %llx\n",
 				raw_smp_processor_id(), ctl, status);
 	if (status & PT_ERROR) {
 		pr_info("cpu %d, error happened: status %llx\n",
