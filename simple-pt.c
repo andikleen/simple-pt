@@ -484,19 +484,23 @@ static void restart(void)
 
 static int probe_start(struct kprobe *kp, struct pt_regs *regs)
 {
-	u64 val;
-	pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val);
-	val |= TRACE_EN;
-	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val);
+	if (__this_cpu_read(pt_running)) {
+		u64 val;
+		pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val);
+		val |= TRACE_EN;
+		pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val);
+	}
 	return 0;
 }
 
 static int probe_stop(struct kprobe *kp, struct pt_regs *regs)
 {
-	u64 val;
-	pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val);
-	val &= ~TRACE_EN;
-	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val);
+	if (__this_cpu_read(pt_running)) {
+		u64 val;
+		pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val);
+		val &= ~TRACE_EN;
+		pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val);
+	}
 	return 0;
 }
 
