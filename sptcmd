@@ -224,7 +224,7 @@ if [ -z "$DONTDUMP" ] ; then
 	sptsideband.py $T/trace ${PREFIX}.maps ${PREFIX}.cpuid $MTC_FREQ > ${PREFIX}.sideband
 
 	if [ "$TRACE" != 0 ] ; then
-		cat $T/trace > ${PREFIX}.trace
+		spttrace < $T/trace > ${PREFIX}.trace
 	fi
 
 	#if [ -r /boot/vmlinux-$(uname -r) ] ; then
