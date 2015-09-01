@@ -616,7 +616,13 @@ static void simple_pt_cpu_init(void *arg)
 	u64 ctl;
 
 	/* check for pt already active */
-	if (pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &ctl) == 0 && (ctl & TRACE_EN)) {
+	if (pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &ctl) < 0) {
+		pr_err("cpu %d, Cannot access RTIT_CTL\n", cpu);
+		pt_error = -EIO;
+		return;
+	}
+
+	if (ctl & TRACE_EN) {
 		if (!force) {
 			pr_err("cpu %d, PT already active: %llx\n", cpu, ctl);
 			pt_error = -EBUSY;
