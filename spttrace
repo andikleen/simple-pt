@@ -52,3 +52,5 @@ for l in sys.stdin:
 	if mval and (mnum in msrfields or mnum in msrbits):
 	    print "not decoded: %x" % mval,
 	print
+    else:
+        print l,
