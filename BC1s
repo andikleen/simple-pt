@@ -1,0 +1,2 @@
+#!/bin/sh
+bash -c 'echo "7^199999" | bc > /dev/null'

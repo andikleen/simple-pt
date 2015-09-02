@@ -2,6 +2,9 @@
 # simple test for simple pt
 # needs to be run as root
 # tester [sptcmd opts]
+# issues:
+# may need -k to finish
+# some tests may need a quiescent system
 
 set -e
 set -x
@@ -19,8 +22,11 @@ PREFIX=stest
 
 EXTRA="-t $1 $2 $3"
 
+STDCMD=loop
+CMD=$STDCMD
+
 run() {
-	sptcmd $EXTRA -o $PREFIX "$@" taskset -c 0 ./loop
+	sptcmd $EXTRA -o $PREFIX "$@" taskset -c 0 $CMD
 	$V sptdecode --sideband ${PREFIX}.sideband --pt ${PREFIX}.0 $DARGS > ${PREFIX}.out
 }
 
@@ -31,11 +37,21 @@ grep -q page_fault stest.out
 run -c loop
 grep -q  __libc_start_main.*main stest.out
 grep -q page_fault stest.out
-run --disretc --msr-trace --no-user
+run --disretc --no-user
 grep -q page_fault stest.out
 run --no-kernel -c loop
 grep -q  __libc_start_main.*main stest.out
 grep -v -q page_fault stest.out
+
+# long trace test to fill the buffer
+CMD=BC1s
+run --no-kernel -c bc
+CMD=$STDCMD
+[ "$(stat -c %s stest.0)" -eq $[2048*1024] ]
+
+# retest simple run
+run --no-user
+grep -q page_fault stest.out
 
 # FIXME: work around libipt bug for now on this test case
 if ! ./ptfeature cyc ; then
