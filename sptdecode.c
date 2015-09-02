@@ -244,6 +244,14 @@ static void print_insn(struct pt_insn *insn, uint64_t ts,
 	ud_disassemble(&d->ud_obj);
 	printf("%*s%s", NUM_WIDTH - n, "", ud_insn_asm(&d->ud_obj));
 #endif
+	if (insn->enabled)
+		printf("\tENA");
+	if (insn->disabled)
+		printf("\tDIS");
+	if (insn->resumed)
+		printf("\tRES");
+	if (insn->interrupted)
+		printf("\tINT");
 	printf("\n");
 }
 
