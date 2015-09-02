@@ -172,6 +172,7 @@ if [ -n "$COMM" ] ; then
 	echo $COMM > $C/comm_filter
 	echo 1 > $C/cr3_filter
 else
+	echo > $C/comm_filter
 	echo 0 > $C/cr3_filter
 fi
 echo $KERNEL > $C/kernel
