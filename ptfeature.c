@@ -115,7 +115,7 @@ int main(int ac, char **av)
 	int psb_freq_mask = 0;
 	int addr_range_num = 0;
 	unsigned max_leaf;
-	float bus_freq;
+	float bus_freq = 0;
 	unsigned fam, mod, stepping;
 	unsigned num;
 

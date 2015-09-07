@@ -143,7 +143,7 @@ static void read_symbols(Elf *elf)
 		perror("/proc/kallsyms");
 		return;
 	}
-	struct module *mod;
+	struct module *mod = NULL;
 	unsigned long long addr = 0;
 	unsigned long long kend = 0, kstart = -1ULL;
 	char name[300], mname[100];
