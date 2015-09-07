@@ -101,7 +101,7 @@ static void read_modules(Elf *elf)
 		int len;
 
 		// scsi_dh_hp_sw 12895 0 - Live 0xffffffffa005e000
-		if (sscanf(line, "%100s %d %*d %*s %*s %llx", mname, &len, &addr) != 3) {
+		if (sscanf(line, "%99s %d %*d %*s %*s %llx", mname, &len, &addr) != 3) {
 			fprintf(stderr, "failed to parse: %s", line);
 			continue;
 		}
@@ -157,7 +157,7 @@ static void read_symbols(Elf *elf)
 	/* step 1: count lines and set up kernel_mod */
 	int numsyms = 0;
 	while (getline(&line, &linelen, f) > 0) {
-		if ((n = sscanf(line, "%llx %1c %300s [%100s", &addr, &type, name, mname)) < 3)
+		if ((n = sscanf(line, "%llx %1c %299s [%99s", &addr, &type, name, mname)) < 3)
 			continue;
 		/* handle stext,etext */
 		kmod = kernel_mod(elf, kmod, name, addr);
@@ -174,7 +174,7 @@ static void read_symbols(Elf *elf)
 
 	int sindex = 0;
 	while (getline(&line, &linelen, f) > 0 && sindex < numsyms) {
-		if ((n = sscanf(line, "%llx %1c %300s [%100s", &addr, &type, name, mname)) < 3)
+		if ((n = sscanf(line, "%llx %1c %299s [%99s", &addr, &type, name, mname)) < 3)
 			continue;
 
 		if (tolower(type) != 't')
