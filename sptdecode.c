@@ -131,7 +131,7 @@ static void print_tsx(struct sinsn *insn, int *prev_spec, int *indent)
 		*indent = 0;
 }
 
-static void print_ip(uint64_t ip, unsigned long cr3)
+static void print_ip(uint64_t ip, uint64_t cr3)
 {
 	struct sym *sym = findsym(ip, cr3);
 	if (sym) {
