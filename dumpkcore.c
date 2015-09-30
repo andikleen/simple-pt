@@ -273,7 +273,7 @@ void read_modules(Elf *elf)
 		int len;
 
 		// scsi_dh_hp_sw 12895 0 - Live 0xffffffffa005e000
-		if (sscanf(line, "%100s %d %*d %*s %*s %llx", mname, &len, &addr) != 3)
+		if (sscanf(line, "%99s %d %*d %*s %*s %llx", mname, &len, &addr) != 3)
 			continue;
 		struct module *mod = newmod(elf, mname, false);
 		mod->start = addr;
@@ -302,7 +302,7 @@ void read_symbols(Elf *elf)
 		char name[300], mname[100];
 		int n;
 
-		if ((n = sscanf(line, "%llx %1c %300s [%100s", &addr, &type, name, mname)) < 3)
+		if ((n = sscanf(line, "%llx %1c %299s [%99s", &addr, &type, name, mname)) < 3)
 			continue;
 
 		/* handle stext,etext, modules */

@@ -133,7 +133,7 @@ static void print_tsx(struct sinsn *insn, int *prev_spec, int *indent)
 }
 
 // XXX print dwarf
-static void print_ip(uint64_t ip, unsigned long cr3)
+static void print_ip(uint64_t ip, uint64_t cr3)
 {
 	struct sym *sym = findsym(ip, cr3);
 	if (sym) {
@@ -231,7 +231,9 @@ static void print_insn(struct pt_insn *insn, uint64_t ts,
 {
 	int i;
 	int n;
-	printf("%lx %lu %5s insn: ", insn->ip, ts,
+	printf("%llx %llu %5s insn: ", 
+		(unsigned long long)insn->ip,
+		(unsigned long long)ts,
 		insn_class(insn->iclass));
 	n = 0;
 	for (i = 0; i < insn->size; i++)
@@ -298,7 +300,10 @@ static int remove_loops(struct sinsn *l, int nr)
 				if (l[j].iterations == 0)
 					l[j].iterations++;
 				l[j].iterations++;
-				printf("loop %lx-%lx %d-%d %u insn iter %d\n", l[j].ip, l[i].ip, j, i,
+				printf("loop %llx-%llx %d-%d %u insn iter %d\n", 
+						(unsigned long long)l[j].ip, 
+						(unsigned long long)l[i].ip,
+						j, i,
 						insn, l[j].iterations);
 				memmove(l + i, l + i + off,
 					(nr - (i + off)) * sizeof(struct sinsn));
@@ -403,7 +408,9 @@ static int decode(struct pt_insn_decoder *decoder)
 		int err = pt_insn_sync_forward(decoder);
 		if (err < 0) {
 			pt_insn_get_offset(decoder, &pos);
-			printf("%lx: sync forward: %s\n", pos, pt_errstr(pt_errcode(err)));
+			printf("%llx: sync forward: %s\n",
+				(unsigned long long)pos,
+				pt_errstr(pt_errcode(err)));
 			break;
 		}
 
@@ -483,7 +490,9 @@ static int decode(struct pt_insn_decoder *decoder)
 		if (err == -pte_eos)
 			break;
 		pt_insn_get_offset(decoder, &pos);
-		printf("%lx:%lx: error %s\n", pos, errip,
+		printf("%llx:%llx: error %s\n",
+				(unsigned long long)pos,
+				(unsigned long long)errip,
 				pt_errstr(pt_errcode(err)));
 	}
 	return 0;
