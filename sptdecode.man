@@ -28,6 +28,13 @@ With the
 or 
 .B -t 
 option the time is shown in TSC units, otherwise in us.
+.PP
+The
+.B -d
+or
+.B --dwarf
+option enables dwarf decoding with
+.I -i.
 .SH EXAMPLES
 .br
 sptcmd command

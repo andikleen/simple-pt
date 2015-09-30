@@ -46,6 +46,7 @@
 #include "symtab.h"
 #include "dtools.h"
 #include "kernel.h"
+#include "dwarf.h"
 
 #ifdef HAVE_UDIS86
 #include <udis86.h>
@@ -131,6 +132,7 @@ static void print_tsx(struct sinsn *insn, int *prev_spec, int *indent)
 		*indent = 0;
 }
 
+// XXX print dwarf
 static void print_ip(uint64_t ip, unsigned long cr3)
 {
 	struct sym *sym = findsym(ip, cr3);
@@ -170,7 +172,8 @@ static void print_time(uint64_t ts, uint64_t *last_ts,uint64_t *first_ts)
 	printf("%-24s", buf);
 }
 
-int dump_insn;
+bool dump_insn;
+bool dump_dwarf;
 
 static char *insn_class(enum pt_insn_class class)
 {
@@ -253,6 +256,8 @@ static void print_insn(struct pt_insn *insn, uint64_t ts,
 	if (insn->interrupted)
 		printf("\tINT");
 	printf("\n");
+	if (dump_dwarf)
+		print_addr(find_ip_fn(insn->ip, cr3), insn->ip);
 }
 
 bool detect_loop = false;
@@ -502,6 +507,7 @@ void usage(void)
 	fprintf(stderr, "-s/--sideband log  Load side band log. Needs access to binaries\n");
 	fprintf(stderr, "--insn/-i        dump instruction bytes\n");
 	fprintf(stderr, "--tsc/-t	  print time as TSC\n");
+	fprintf(stderr, "--dwarf/-d	  show line number information\n");
 #if 0 /* needs more debugging */
 	fprintf(stderr, "--loop/-l	  detect loops\n");
 #endif
@@ -515,6 +521,7 @@ struct option opts[] = {
 	{ "sideband", required_argument, NULL, 's' },
 	{ "loop", no_argument, NULL, 'l' },
 	{ "tsc", no_argument, NULL, 't' },
+	{ "dwarf", no_argument, NULL, 'd' },
 	{ }
 };
 
@@ -527,7 +534,7 @@ int main(int ac, char **av)
 	bool use_tsc_time = false;
 
 	pt_config_init(&config);
-	while ((c = getopt_long(ac, av, "e:p:is:lt", opts, NULL)) != -1) {
+	while ((c = getopt_long(ac, av, "e:p:is:ltd", opts, NULL)) != -1) {
 		switch (c) {
 		case 'e':
 			if (read_elf(optarg, image, 0, 0) < 0) {
@@ -544,7 +551,7 @@ int main(int ac, char **av)
 			decoder = init_decoder(optarg, &config);
 			break;
 		case 'i':
-			dump_insn = 1;
+			dump_insn = true;
 			break;
 		case 's':
 			if (decoder) {
@@ -558,6 +565,9 @@ int main(int ac, char **av)
 			break;
 		case 't':
 			use_tsc_time = true;
+			break;
+		case 'd':
+			dump_dwarf = true;
 			break;
 		default:
 			usage();

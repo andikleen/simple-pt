@@ -170,7 +170,8 @@ static void read_symbols(Elf *elf)
 	}
 	rewind(f);
 	
-	struct symtab *ksymtab = add_symtab(numsyms, 0, 0);
+	// XXX find vmlinux
+	struct symtab *ksymtab = add_symtab(numsyms, 0, 0, NULL);
 
 	int sindex = 0;
 	while (getline(&line, &linelen, f) > 0 && sindex < numsyms) {

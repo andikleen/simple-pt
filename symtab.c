@@ -32,26 +32,28 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
 #include "symtab.h"
 
 struct symtab *symtabs;
 
 /* caller must fill in st->end */
 struct symtab *add_symtab(unsigned num, unsigned long cr3,
-			  unsigned long base)
+			  unsigned long base, char *fn)
 {
 	struct symtab *st = malloc(sizeof(struct symtab));
 	if (!st)
 		exit(ENOMEM);
 	st->num = num;
 	st->next = symtabs;
+	symtabs = st;
 	st->cr3 = cr3;
 	st->base = base;
 	st->syms = malloc(num * sizeof(struct sym));
-	st->end = 0;
 	if (!st->syms)
 		exit(ENOMEM);
-	symtabs = st;
+	st->end = 0;
+	st->fn = fn ? strdup(fn) : NULL;
 	return st;
 }
 
@@ -81,6 +83,19 @@ struct sym *findsym(unsigned long val, unsigned long cr3)
 		s = bsearch(&search, st->syms,  st->num, sizeof(struct sym), cmp_sym);
 		if (s)
 			return s;
+	}
+	return NULL;
+}
+
+char *find_ip_fn(unsigned long val, unsigned long cr3)
+{
+	struct symtab *st;
+	for (st = symtabs; st; st = st->next) {
+		if (st->cr3 && cr3 && cr3 != st->cr3)
+			continue;
+		if (val < st->base || val >= st->end)
+			continue;
+		return st->fn;
 	}
 	return NULL;
 }

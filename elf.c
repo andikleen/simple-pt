@@ -37,7 +37,7 @@
 #include "symtab.h"
 #include "elf.h"
 
-void read_symtab(Elf *elf, uint64_t cr3, uint64_t base, uint64_t offset)
+void read_symtab(Elf *elf, uint64_t cr3, uint64_t base, uint64_t offset, char *fn)
 {
 	Elf_Scn *section = NULL;
 
@@ -51,7 +51,8 @@ void read_symtab(Elf *elf, uint64_t cr3, uint64_t base, uint64_t offset)
 			int j;
 
 			unsigned numsym = sh->sh_size / sh->sh_entsize;
-			struct symtab *st = add_symtab(numsym, cr3, base);
+			// XXX search for debug info
+			struct symtab *st = add_symtab(numsym, cr3, base, fn);
 			struct sym *s;
 			st->end = 0;
 			for (j = 0; j < numsym; j++) {
@@ -171,7 +172,7 @@ int read_elf(char *fn, struct pt_image *image, uint64_t base, uint64_t cr3)
 	if (gelf_getehdr(elf, &header))
 		shlib = header.e_type != ET_EXEC;
 	find_offset(elf, base, &offset);
-	read_symtab(elf, cr3, base, shlib ? offset : 0);
+	read_symtab(elf, cr3, base, shlib ? offset : 0, fn);
 	if (p) {
 		elf_close(elf, fd);
 		elf = elf_open(p, &fd);
