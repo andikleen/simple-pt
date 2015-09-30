@@ -89,7 +89,7 @@ for l in arguments.trace:
         args['addr'] = '0'
     if not 'pgoff' in args:
         args['pgoff'] = '0'
-    args['pgoff'] = int(args['pgoff']) * 4096
+    args['pgoff'] = int(args['pgoff'], 16) * 4096
     print ts, pid, args['cr3'], args['addr'], "%d" % (args['pgoff']) + "\t" + args['fn']
 
 if arguments.maps:
