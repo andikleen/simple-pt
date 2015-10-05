@@ -450,16 +450,16 @@ void read_kcore(Elf *elf, Elf *kelf, int kfd, int strscn)
 	/* Create PHDRs */
 	elf_update (elf, ELF_C_NULL);
 	for (i = 0; i < num_modules; i++) {
-		GElf_Phdr phdr_mem;
-		GElf_Phdr *phdr = gelf_getphdr(elf, i, &phdr_mem);
-		phdr->p_type = PT_LOAD;
-		phdr->p_offset = shdrs[i].sh_offset;
-		phdr->p_filesz = shdrs[i].sh_size;
-		phdr->p_vaddr = shdrs[i].sh_addr;
-		phdr->p_filesz = shdrs[i].sh_size;
-		phdr->p_flags = PF_R|PF_X;
-		phdr->p_memsz = shdrs[i].sh_size;
-		gelf_update_phdr(elf, i, phdr);
+		GElf_Phdr phdr = {
+			.p_type = PT_LOAD,
+			.p_offset = shdrs[i].sh_offset,
+			.p_filesz = shdrs[i].sh_size,
+			.p_vaddr = shdrs[i].sh_addr,
+			.p_filesz = shdrs[i].sh_size,
+			.p_flags = PF_R|PF_X,
+			.p_memsz = shdrs[i].sh_size,
+		};
+		gelf_update_phdr(elf, i, &phdr);
 	}
 }
 
