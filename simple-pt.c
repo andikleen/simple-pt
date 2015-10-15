@@ -353,6 +353,9 @@ MODULE_PARM_DESC(trace_start, "Start trace when reaching kernel address. Can be 
 static bool force = false;
 module_param(force, bool, 0644);
 MODULE_PARM_DESC(force, "Force PT initialization even when already active");
+static unsigned long tasklist_lock_ptr;
+module_param(tasklist_lock_ptr, ulong, 0400);
+MODULE_PARM_DESC(tasklist_lock_ptr, "Set address of tasklist_lock (for kernels without CONFIG_KALLSYMS_ALL)");
 
 static DEFINE_MUTEX(restart_mutex);
 
@@ -509,9 +512,12 @@ static void do_enumerate_all(void)
 {
 	struct task_struct *t;
 	/* XXX, better way? */
-	rwlock_t *my_tasklist_lock = (rwlock_t *)kallsyms_lookup_name("tasklist_lock");
+	rwlock_t *my_tasklist_lock = (rwlock_t *)tasklist_lock_ptr;
+	if (!my_tasklist_lock)
+		my_tasklist_lock = (rwlock_t *)kallsyms_lookup_name("tasklist_lock");
 	if (!my_tasklist_lock) {
-		pr_err("Cannot find tasklist_lock\n");
+		pr_err("Cannot find tasklist_lock. CONFIG_KALLSYMS_ALL disabled?\n");
+		pr_err("Specify tasklist_lock_ptr parameter at module load\n");
 		return;
 	}
 
