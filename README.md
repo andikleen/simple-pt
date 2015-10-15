@@ -198,6 +198,10 @@ buffers.
   over the PT hardware with --force -d.
 * When configuring the driver manually you need to manually reset any parameters you do not want anymore.
   sptcmd takes care of that automatically.
+* Some Debian kernels are built without CONFIG_KALLSYMS_ALL. When you see an "Cannot find task_lock"
+error message load the simple_pt module like this
+
+	insmod simple_pt.ko tasklist_lock_ptr=0x$(grep tasklist_lock /boot/System.map-$(uname -r) | awk ' {print $1}')
 
 # Limitations:
 
