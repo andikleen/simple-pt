@@ -26,8 +26,8 @@ static void compat_unregister_trace_sched_process_exec(void (*probe)(void *, str
 #define compat_unregister_trace_sched_process_exec unregister_trace_sched_process_exec
 #endif
 
-/* Probably works on older too, but only 4.1 is tested. 3.13 is known to be broken. */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,1,0)
+/* arbitrary cut-off point. 3.19 is known to work, 3.13 is known broken. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
 
 /*
  * Work around bug in older kernels that unsigned or out of tree
