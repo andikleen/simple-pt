@@ -4,10 +4,10 @@
 
 simple-pt is a simple experimental reference implementation of Intel Processor Trace (PT) on
 Linux. PT can trace all branches executed by the CPU at the hardware level
-with moderate overhead. A PT decoder then uses sideband data to decode the branch
+with moderate overhead. A PT decoder then uses sideband trace data to decode the branch
 traces. 
 
-PT is supported on Intel 5th generation Code (Broadwell) and 6th generation Code (Skylake) CPUs.
+PT is supported on Intel 5th generation Core (Broadwell) and 6th generation Core (Skylake) CPUs.
 
 # Example
 
@@ -179,7 +179,7 @@ buffer size can be changed with the pt_buffer_order parameter.
 
 The size is specified in 2^n 4K pages. The default is 9 (2MB). The maximum limit
 is the kernel's MAX_ORDER limit, typically 8MB. The allocation may also fail
-if the kernel memory is too fragmented. In this case quiting a large process
+if the kernel memory is too fragmented. In this case quitting a large process
 may help.
 
 When ptfeature shows the "multiple toPA entries" feature it is possible to
@@ -220,6 +220,8 @@ error message load the simple_pt module like this
   different code (for example after dlclose/dlopen)
 
 * Tracing JITed code is not supported.
+
+* On Skylake the trace time occasionally jumps backwards after frequency changes.
 
 * Decoder loses synchronization in some cases where it shouldn't.
 
