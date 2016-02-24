@@ -225,6 +225,25 @@ error message load the simple_pt module like this
 
 * Decoder loses synchronization in some cases where it shouldn't.
 
+# Porting simple-pt
+
+There is some Linux specific code in the driver, but the basic PT hardware configuration
+should be straight forward to adapt to other environments. The minimum support needed
+is memory allocation, a mechanism to call a callback on all CPUs (IPIs), and a mechanism
+to establish a shared buffer with the decoding tool (implemented using mmap on a character device).
+When suspend-to-ram is supported it's also useful to have a callback after resume
+to reinitialize the hardware.
+
+The kernel driver is configured using global variables with Linux's moduleparams mechanism.
+This can be replaced with simple hard coded variables.
+
+The driver supports Linux "kprobes" and "kallsyms" to set custom triggers. That code
+is all optional and can be removed. Such optional code is generally marked as
+optional.
+
+The user tools should be portable to POSIX C99 based systems. The code to access the kernel
+image will need to be adapted.  Porting to non DWARF/ELF based systems will need more work.
+
 # Contact
 simple-pt@halobates.de
 
