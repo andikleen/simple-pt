@@ -531,6 +531,7 @@ struct option opts[] = {
 	{ "loop", no_argument, NULL, 'l' },
 	{ "tsc", no_argument, NULL, 't' },
 	{ "dwarf", no_argument, NULL, 'd' },
+	{ "kernel", required_argument, NULL, 'k' },
 	{ }
 };
 
@@ -541,9 +542,10 @@ int main(int ac, char **av)
 	struct pt_image *image = pt_image_alloc("simple-pt");
 	int c;
 	bool use_tsc_time = false;
+	char *kernel_fn = NULL;
 
 	pt_config_init(&config);
-	while ((c = getopt_long(ac, av, "e:p:is:ltd", opts, NULL)) != -1) {
+	while ((c = getopt_long(ac, av, "e:p:is:ltdk:", opts, NULL)) != -1) {
 		switch (c) {
 		case 'e':
 			if (read_elf(optarg, image, 0, 0) < 0) {
@@ -578,6 +580,9 @@ int main(int ac, char **av)
 		case 'd':
 			dump_dwarf = true;
 			break;
+		case 'k':
+			kernel_fn = optarg;
+			break;
 		default:
 			usage();
 		}
@@ -585,7 +590,10 @@ int main(int ac, char **av)
 	if (use_tsc_time)
 		tsc_freq = 0;
 	if (decoder) {
-	  	read_kernel(image);
+		if (kernel_fn)
+			read_elf(kernel_fn, image, 0, 0);
+		else
+			read_kernel(image);
 		pt_insn_set_image(decoder, image);
 	}
 	if (ac - optind != 0 || !decoder)
