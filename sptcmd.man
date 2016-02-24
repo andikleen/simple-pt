@@ -113,6 +113,9 @@ enables tracing all PT configuration register accesses done by the driver.
 .PP
 .B --print-regs
 prints the PT registers at the end of the trace.
+.PP
+.B --enable
+only enables the trace, but does not stop or dump it. Command is optional.
 
 The resulting trace is put into the
 .I prefix.trace

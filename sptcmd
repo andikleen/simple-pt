@@ -21,6 +21,7 @@ sptcmd [options] cmd
 --enumerate -e enumerate all processes in sideband (default unless -c is set)
 --force     -f Force initialization even when PT is already active (dangerous)
 --keep	    -k Keep kernel trace points running after end.
+--enable    -E Only enable tracing, but don't dump. cmd is optional
 
 --start-addr addr -s addr
 	       Start trace on CPU when kernel symbol start is hit. Can be address
@@ -47,7 +48,7 @@ PATH=$PATH:$(dirname $0)
 
 unset COMM KERNEL TRACE USERMODE DISRETC DRIVER DONTDUMP PREFIX ENUMALL
 unset CYC_THRESH MTC_FREQ PSB_FREQ FILTER TSTOP START STOP FORCE KEEP
-unset PRINT_REGS
+unset PRINT_REGS ENABLE_ONLY
 declare -a RANGE_START RANGE_END RANGE_CFG
 NUM_RANGE=0
 MAX_RANGE=2
@@ -82,13 +83,14 @@ for ((j = 0; j < $#; j++)) ; do
 	--start-addr) ARGS[$j]=-s ;;
 	--stop-addr) ARGS[$j]=-y ;;
 	--print-regs) ARGS[$j]="-@" ; PRINT_REGS=1 ;;
+	--enable) ARGS[$j]=-E ;;
 	--) ARGS[$j]=${ARGS[$j]}; B=1 ;;
 	--*) usage ; exit 1 ;;
 	*) ARGS[$j]="${ARGS[$j]}" ;;
 	esac
 done
 
-while getopts "c:KtURkfdNo:eC:M:P:F:S:s:y:@" opt ${ARGS[@]} ; do
+while getopts "c:KtURkfdNo:eC:M:P:F:S:s:y:@E" opt ${ARGS[@]} ; do
 	case "$opt" in
 	c) COMM="$OPTARG" ; ENUMDFL=0 ;;
 	K) KERNEL=0 ;;
@@ -101,6 +103,7 @@ while getopts "c:KtURkfdNo:eC:M:P:F:S:s:y:@" opt ${ARGS[@]} ; do
 	o) PREFIX="$OPTARG" ;;
 	e) ENUMALL=1 ;;
 	k) KEEP=1 ;;
+	E) ENABLE_ONLY=1;
 	C) CYC_THRESH="$OPTARG"
 	   ptfeature cyc_thresh $CYC_THRESH || usage
 	   ;;
@@ -205,7 +208,11 @@ if [ "$ENUMALL" != 0 ] ; then
 else
 	echo -n > ${PREFIX}.maps
 fi
+ptfeature > ${PREFIX}.cpuid
 echo 1 > $C/start
+if [ "$ENABLE_ONLY" != "" ] ; then
+	exit 0
+fi
 "$@"
 if [ "$PRINT_REGS" != 0 ] ; then
 	ptregs
