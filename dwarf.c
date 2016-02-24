@@ -79,7 +79,7 @@ static void print_line(Dwarf_Debug dbg, Dwarf_Line line)
 	Dwarf_Unsigned srcfileno = 0;
 	Dwarf_Addr laddr;
 	Dwarf_Error err;
-	char *filename;
+	char *filename = "";
 
 	dwarf_lineno(line, &lineno, &err);
 	dwarf_line_srcfileno(line, &srcfileno, &err);
