@@ -187,6 +187,20 @@ allocate multiple PT buffers with the pt_num_buffers parameter. All the buffers
 are logically concatenated. The default is one buffer. The maximum is 511
 buffers.
 
+# Using simple-pt for panic debugging
+
+simple-pt can be used to print a number of branches before a panic.
+
+	insmod simple-pt.ko start=1
+	<panic system>
+	<collect log from serial console>
+
+The PT information is logged in base64 format to the kernel log.  It can be recovered
+with the base64log.py utility
+
+	base64log.py < log > ptlog
+	sptdecode --elf vmlinux --pt ptlog
+
 # Notes
 
 * To limit the program to one CPU use sptcmd taskset -c CPU ..
