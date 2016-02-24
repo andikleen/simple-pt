@@ -102,6 +102,7 @@
 static bool delay_start;
 
 static void restart(void);
+static void stop_pt_all(void);
 
 static int resync_set(const char *val, const struct kernel_param *kp)
 {
@@ -268,6 +269,25 @@ static struct kernel_param_ops trace_stop_ops = {
 	.get = param_get_ulong,
 };
 
+static int pt_num_buffers = 1;
+static int log_dump = 0;
+static void print_last_branches(int num_psbs);
+
+static int log_dump_set(const char *val, const struct kernel_param *kp)
+{
+	int ret = param_set_int(val, kp);
+	if (start && log_dump && pt_num_buffers == 1) {
+		stop_pt_all();
+		print_last_branches(log_dump);
+	}
+	return ret;
+}
+
+static struct kernel_param_ops log_dump_ops = {
+	.set = log_dump_set,
+	.get = param_get_ulong,
+};
+
 /* End of optional code */
 
 static DEFINE_PER_CPU(unsigned long, pt_buffer_cpu);
@@ -285,7 +305,6 @@ static unsigned addr_cfg_max;
 static int pt_buffer_order = 9;
 module_param(pt_buffer_order, int, 0444);
 MODULE_PARM_DESC(pt_buffer_order, "Order of PT buffer size per CPU (2^n pages)");
-static int pt_num_buffers = 1;
 module_param(pt_num_buffers, int, 0444);
 MODULE_PARM_DESC(pt_num_buffers, "Number of PT buffers per CPU (if supported)");
 module_param_cb(start, &start_ops, &start, 0644);
@@ -356,6 +375,10 @@ MODULE_PARM_DESC(force, "Force PT initialization even when already active");
 static unsigned long tasklist_lock_ptr;
 module_param(tasklist_lock_ptr, ulong, 0400);
 MODULE_PARM_DESC(tasklist_lock_ptr, "Set address of tasklist_lock (for kernels without CONFIG_KALLSYMS_ALL)");
+static int print_panic_psbs = 0;
+module_param(print_panic_psbs, int, 0644);
+MODULE_PARM_DESC(print_panic_psbs, "Print as many PSBs from PT log into kernel log on panic");
+module_param_cb(log_dump, &log_dump_ops, &log_dump, 0644);
 
 static DEFINE_MUTEX(restart_mutex);
 
@@ -473,6 +496,14 @@ static void stop_pt(void *arg)
 	pt_rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
 	__this_cpu_write(pt_offset, offset >> 32);
 	__this_cpu_write(pt_running, false);
+}
+
+static void stop_pt_all(void)
+{
+	mutex_lock(&restart_mutex);
+	on_each_cpu(stop_pt, NULL, 1);
+	start = 0;
+	mutex_unlock(&restart_mutex);
 }
 
 static void restart(void)
@@ -852,6 +883,85 @@ static int simple_pt_cpu(struct notifier_block *nb, unsigned long action,
 	return NOTIFY_OK;
 }
 
+static bool is_psb(void *p)
+{
+	return *(u64 *)p == 0x8202820282028202ULL && ((u64 *)p)[1] == 0x8202820282028202ULL;
+}
+
+static const char base64[] =
+"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+#define LINELEN 75
+
+static void print_base64(char *start, char *end)
+{
+	char line[LINELEN + 1];
+	char *o = line;
+
+	while (start < end) {
+		unsigned b;
+
+		*o++ = base64[(start[0] & 0xfc) >> 2];
+		b = (start[0] & 3) << 4;
+		if (start + 1 < end) {
+			b |= (start[1] & 0xf0) >> 4;
+			*o++ = base64[b];
+			b = (start[1] & 0xf) << 2;
+			if (start + 2 < end) {
+				b |= (start[2] & 0xc0) >> 6;
+				*o++ = base64[b];
+				b = start[2] & 0x3f;
+				*o++ = base64[b];
+			} else {
+				*o++ = base64[b];
+				*o++ = '=';
+			}
+		} else {
+			*o++ = base64[b];
+			*o++ = '=';
+			*o++ = '=';
+		}
+		if (o - line >= LINELEN) {
+			*o = 0;
+			printk("%s\n", line);
+			o = line;
+		}
+		start += 3;
+	}
+	if (o > line) {
+		*o = 0;
+		printk("%s\n", line);
+	}
+}
+
+/*
+ * This should rather go into pstore, but pstore doesn't support
+ * writing from modules currently, so we just write it to the
+ * kernel log.
+ */
+static void print_last_branches(int num_psbs)
+{
+	u64 offset = __this_cpu_read(pt_offset);
+	char *base = (char *)__this_cpu_read(pt_buffer_cpu);
+	u64 end;
+
+	end = offset;
+	if (offset <= 16)
+		return;
+	offset -= 16;
+	printk(KERN_INFO "PT DUMP START OFF %llx CPU %d BUF %p\n", offset,
+			raw_smp_processor_id(), base);
+	while (offset >= 0 && num_psbs > 0) {
+		if (is_psb(base + offset)) {
+			print_base64(base + offset, base + end);
+			num_psbs--;
+			end = offset;
+		}
+		offset--;
+	}
+	printk(KERN_INFO "PT DUMP END %llx\n", offset);
+}
+
 static struct notifier_block cpu_notifier = {
 	.notifier_call = simple_pt_cpu,
 };
@@ -862,8 +972,13 @@ static int simple_pt_panic(struct notifier_block *nb, unsigned long action,
 {
 	/* Assumes the interrupts are still on. Should send a NMI?
 	 * We don't wait to avoid any deadlocks.
+	 * Could also only stop on the current CPU.
 	 */
+	if (!start)
+		return NOTIFY_OK;
 	on_each_cpu(stop_pt, NULL, 0);
+	if (print_panic_psbs && pt_num_buffers == 1)
+		print_last_branches(print_panic_psbs);
 	return NOTIFY_OK;
 }
 
