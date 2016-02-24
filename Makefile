@@ -1,6 +1,6 @@
 USER_CFLAGS := -g -Wall
 ifeq (${UDIS86},1)
-USER_CFLAGS += -DHAVE_UDIS86 -I ../udis86/include
+USER_CFLAGS += -DHAVE_UDIS86 -I ../udis86
 UDIS86_LDFLAGS := -L ../udis86/libudis86/.libs
 UDIS86_LDLIBS := -ludis86
 endif
