@@ -191,15 +191,21 @@ buffers.
 
 simple-pt can be used to print a number of branches before a panic.
 
-	insmod simple-pt.ko start=1
+	insmod simple-pt.ko start=1 print_panic_psbs=4
 	<panic system>
 	<collect log from serial console>
+
+The number after print_panic_psbs specifies the length of the logged trace
+(expressed in number of PT sync points)
 
 The PT information is logged in base64 format to the kernel log.  It can be recovered
 with the base64log.py utility
 
 	base64log.py < log > ptlog
 	sptdecode --elf vmlinux --pt ptlog
+
+This method currently does not support modules or ring 3 code, or multiple
+PT buffers.
 
 # Notes
 
