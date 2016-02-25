@@ -951,14 +951,15 @@ static void print_last_branches(int num_psbs)
 	offset -= 16;
 	printk(KERN_INFO "PT DUMP START OFF %llx CPU %d BUF %p\n", offset,
 			raw_smp_processor_id(), base);
-	while (offset >= 0 && num_psbs > 0) {
-		if (is_psb(base + offset)) {
-			print_base64(base + offset, base + end);
-			num_psbs--;
-			end = offset;
-		}
+	for (;;) {
+		if (is_psb(base + offset) &&
+			--num_psbs <= 0)
+			break;
+		if (offset == 0)
+			break;
 		offset--;
 	}
+	print_base64(base + offset, base + end);
 	printk(KERN_INFO "PT DUMP END %llx\n", offset);
 }
 
