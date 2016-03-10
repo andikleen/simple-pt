@@ -103,7 +103,7 @@ while getopts "c:KtURkfdNo:eC:M:P:F:S:s:y:@E" opt ${ARGS[@]} ; do
 	o) PREFIX="$OPTARG" ;;
 	e) ENUMALL=1 ;;
 	k) KEEP=1 ;;
-	E) ENABLE_ONLY=1;
+	E) ENABLE_ONLY=1;;
 	C) CYC_THRESH="$OPTARG"
 	   ptfeature cyc_thresh $CYC_THRESH || usage
 	   ;;
