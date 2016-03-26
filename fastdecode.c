@@ -234,6 +234,7 @@ void decode_buffer(unsigned char *map, size_t len)
 						((u64)p[4] << 28) |
 						((u64)p[5] << 36) |
 						((u64)p[6] << 44));
+					p += 7;
 					continue;
 				}
 			}
