@@ -66,6 +66,7 @@ Simple PT has the following functionality
 * simple driver that could be ported to older kernel releases or other operating systems
 * simple code base that is easily changed.
 * modular "unix style" design with simple tools that do only one thing
+* can dump branches before panic to kernel log
 
 # Installation
 
