@@ -427,13 +427,13 @@ static int decode(struct pt_insn_decoder *decoder)
 				struct sinsn *si = &insnbuf[sic];
 
 				insn.ip = 0;
+				pt_insn_time(decoder, &si->ts, NULL, NULL);
 				err = pt_insn_next(decoder, &insn, sizeof(struct pt_insn));
 				if (err < 0) {
 					errip = insn.ip;
 					break;
 				}
 				// XXX use lost counts
-				pt_insn_time(decoder, &si->ts, NULL, NULL);
 				pt_insn_get_cr3(decoder, &si->cr3);
 				if (dump_insn)
 					print_insn(&insn, si->ts, &dis, si->cr3);
