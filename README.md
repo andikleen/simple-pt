@@ -213,7 +213,7 @@ PT buffers.
 * To limit the program to one CPU use sptcmd taskset -c CPU ..
 * To demangle C++ symbols pipe output through c++filt
 * To start/stop around specific user code bracket it with dummy syscalls that you
-  can then put a kernel trigger on. The test suite uses personality(12341234) and prctl(12341234).
+  can then put a kernel trigger on. The test suite uses personality(21212212) and prctl(12341234).
   This will be improved in the future.
 * perf or the BIOS may be already using the PT hardware. If you know it's safe you can take
   over the PT hardware with --force -d.
