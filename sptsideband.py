@@ -68,7 +68,10 @@ for l in arguments.trace:
     if l.startswith('#'):
         continue
     f = l.split()
-    proc, cpu, flags, ts, tp = f[:5]
+    try:
+        proc, cpu, flags, ts, tp = f[:5]
+    except ValueError:
+        print >>sys.stderr, "Cannot parse", l,
     ts = ts.replace(":", "")
     if tp not in ("process_cr3:", "exec_cr3", "mmap_cr3:"):
         continue
