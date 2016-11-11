@@ -229,7 +229,7 @@ static int kprobe_set(const char *val, const struct kernel_param *kp,
 		kprobe->addr = NULL;
 	}
 	if (addr) {
-		static int (*handler)(struct kprobe *kp, struct pt_regs *regs);
+		int (*handler)(struct kprobe *kp, struct pt_regs *regs);
 		handler = kprobe->pre_handler;
 		/* Linux doesn't like reusing an old kprobes structure.
 		 * Always clear and reinitialize.
