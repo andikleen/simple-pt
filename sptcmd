@@ -22,6 +22,7 @@ sptcmd [options] cmd
 --force     -f Force initialization even when PT is already active (dangerous)
 --keep	    -k Keep kernel trace points running after end.
 --enable    -E Only enable tracing, but don't dump. cmd is optional
+--dump	    -D Only dump already running trace (after sptcmd -E)
 
 --start-addr addr -s addr
 	       Start trace on CPU when kernel symbol start is hit. Can be address
@@ -48,7 +49,7 @@ PATH=$PATH:$(dirname $0)
 
 unset COMM KERNEL TRACE USERMODE DISRETC DRIVER DONTDUMP PREFIX ENUMALL
 unset CYC_THRESH MTC_FREQ PSB_FREQ FILTER TSTOP START STOP FORCE KEEP
-unset PRINT_REGS ENABLE_ONLY
+unset PRINT_REGS ENABLE_ONLY DUMP_ONLY
 declare -a RANGE_START RANGE_END RANGE_CFG
 NUM_RANGE=0
 MAX_RANGE=2
@@ -84,13 +85,14 @@ for ((j = 0; j < $#; j++)) ; do
 	--stop-addr) ARGS[$j]=-y ;;
 	--print-regs) ARGS[$j]="-@" ; PRINT_REGS=1 ;;
 	--enable) ARGS[$j]=-E ;;
+	--dump) ARGS[$j]=-D ;;
 	--) ARGS[$j]=${ARGS[$j]}; B=1 ;;
 	--*) usage ; exit 1 ;;
 	*) ARGS[$j]="${ARGS[$j]}" ;;
 	esac
 done
 
-while getopts "c:KtURkfdNo:eC:M:P:F:S:s:y:@E" opt ${ARGS[@]} ; do
+while getopts "c:KtURkfdNo:eC:M:P:F:S:s:y:@ED" opt ${ARGS[@]} ; do
 	case "$opt" in
 	c) COMM="$OPTARG" ; ENUMDFL=0 ;;
 	K) KERNEL=0 ;;
@@ -99,6 +101,7 @@ while getopts "c:KtURkfdNo:eC:M:P:F:S:s:y:@E" opt ${ARGS[@]} ; do
 	R) DISRETC=1 ;;
 	d) DRIVER=1 ;;
 	N) DONTDUMP=1 ;;
+	D) DUMP_ONLY=1 ;;
 	f) FORCE=1 ;;
 	o) PREFIX="$OPTARG" ;;
 	e) ENUMALL=1 ;;
@@ -141,6 +144,7 @@ USERMODE=${USERMODE:-1}
 DISRETC=${DISRETC:-0}
 DRIVER=${DRIVER:-}
 DONTDUMP=${DONTDUMP:-}
+DUMP_ONLY=${DUMP_ONLY:-}
 PREFIX=${PREFIX:-ptout}
 ENUMALL=${ENUMALL:-$ENUMDFL}
 CYC_THRESH=${CYC_THRESH:-0}
@@ -171,49 +175,55 @@ if ! lsmod | grep -q simple_pt ; then
 	fi
 fi
 C=/sys/module/simple_pt/parameters
-if [ -n "$COMM" ] ; then
-	echo $COMM > $C/comm_filter
-	echo 1 > $C/cr3_filter
-else
-	echo > $C/comm_filter
-	echo 0 > $C/cr3_filter
+if [ -n "$DUMP_ONLY" ] ; then
+	OLDSTART="`cat $C/start`"
 fi
-echo $KERNEL > $C/kernel
-echo $USERMODE > $C/user
-echo $DISRETC > $C/dis_retc
-echo $FORCE > $C/force
+
 T=/sys/kernel/debug/tracing
-echo $TRACE > $T/events/pttp/msr/enable
-echo 1 > $T/events/pttp/exec_cr3/enable
-echo 1 > $T/events/pttp/mmap_cr3/enable
-echo 1 > $T/events/pttp/process_cr3/enable
-echo $MTC_FREQ > $C/mtc_freq
-echo $CYC_THRESH > $C/cyc_thresh
-echo $PSB_FREQ > $C/psb_freq
-for (( r = 0; r < NUM_RANGE; r++ )) ; do
-	echo ${RANGE_START[$r]} > $C/addr${r}_start
-	echo ${RANGE_END[$r]} > $C/addr${r}_end
-	echo ${RANGE_CFG[$r]} > $C/addr${r}_cfg
-done
-for (( ; r < MAX_RANGE; r++ )) ; do
-	echo 0 > $C/addr${r}_cfg
-done
-echo $START > $C/trace_start
-echo $STOP > $C/trace_stop
-echo > $T/trace
-echo $ENUMALL > $C/enumerate_all
-if [ "$ENUMALL" != 0 ] ; then
-	grep . /proc/[0-9]*/maps > ${PREFIX}.maps
-	echo >&2 "Wrote initial process maps to ${PREFIX}.maps"
-else
-	echo -n > ${PREFIX}.maps
+if [ -z "$DUMP_ONLY" ] ; then
+	if [ -n "$COMM" ] ; then
+		echo $COMM > $C/comm_filter
+		echo 1 > $C/cr3_filter
+	else
+		echo > $C/comm_filter
+		echo 0 > $C/cr3_filter
+	fi
+	echo $KERNEL > $C/kernel
+	echo $USERMODE > $C/user
+	echo $DISRETC > $C/dis_retc
+	echo $FORCE > $C/force
+	echo $TRACE > $T/events/pttp/msr/enable
+	echo 1 > $T/events/pttp/exec_cr3/enable
+	echo 1 > $T/events/pttp/mmap_cr3/enable
+	echo 1 > $T/events/pttp/process_cr3/enable
+	echo $MTC_FREQ > $C/mtc_freq
+	echo $CYC_THRESH > $C/cyc_thresh
+	echo $PSB_FREQ > $C/psb_freq
+	for (( r = 0; r < NUM_RANGE; r++ )) ; do
+		echo ${RANGE_START[$r]} > $C/addr${r}_start
+		echo ${RANGE_END[$r]} > $C/addr${r}_end
+		echo ${RANGE_CFG[$r]} > $C/addr${r}_cfg
+	done
+	for (( ; r < MAX_RANGE; r++ )) ; do
+		echo 0 > $C/addr${r}_cfg
+	done
+	echo $START > $C/trace_start
+	echo $STOP > $C/trace_stop
+	echo > $T/trace
+	echo $ENUMALL > $C/enumerate_all
+	if [ "$ENUMALL" != 0 ] ; then
+		grep . /proc/[0-9]*/maps > ${PREFIX}.maps
+		echo >&2 "Wrote initial process maps to ${PREFIX}.maps"
+	else
+		echo -n > ${PREFIX}.maps
+	fi
+	ptfeature > ${PREFIX}.cpuid
+	echo 1 > $C/start
+	if [ "$ENABLE_ONLY" != "" ] ; then
+		exit 0
+	fi
+	"$@"
 fi
-ptfeature > ${PREFIX}.cpuid
-echo 1 > $C/start
-if [ "$ENABLE_ONLY" != "" ] ; then
-	exit 0
-fi
-"$@"
 if [ "$PRINT_REGS" != 0 ] ; then
 	ptregs
 fi
@@ -249,4 +259,7 @@ if [ -z "$DONTDUMP" ] ; then
 	#	echo -e "0.0 0" $addr 0 "\t" /lib/modules/$(uname -r)/**/${name}.ko
 	#done < /proc/modules >> ${PREFIX}.sideband
 	echo "Wrote sideband to ${PREFIX}.sideband"
+fi
+if [ -n "$DUMP_ONLY" ] ; then
+	echo $OLDSTART > $C/start
 fi
