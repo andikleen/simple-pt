@@ -92,8 +92,10 @@ for l in arguments.trace:
         args['addr'] = '0'
     if not 'pgoff' in args:
         args['pgoff'] = '0'
+    if not 'len' in args:
+        args['len'] = '0'
     args['pgoff'] = int(args['pgoff'], 16) * 4096
-    print ts, pid, args['cr3'], args['addr'], "%d" % (args['pgoff']) + "\t" + args['fn']
+    print ts, pid, args['cr3'], args['addr'], "%d" % (args['pgoff']), args['len'] + "\t" + args['fn']
 
 if arguments.maps:
     # /proc/1/maps:7ff4d5751000-7ff4d5950000 ---p 0000b000 08:02 266205                     /lib/x86_64-linux-gnu/libnss_files-2.19.so
@@ -115,4 +117,5 @@ if arguments.maps:
             continue
         if m.group('perm').find('x') < 0:
             continue
-        print "0.0", m.group('pid'), cr3s[int(m.group('pid'))], m.group('start'), m.group('pgoff') + "\t" + m.group('fn')
+        map_len = int(m.group('end'), 16)  - int(m.group('start'), 16)
+        print "0.0", m.group('pid'), cr3s[int(m.group('pid'))], m.group('start'), m.group('pgoff'), map_len, "\t" + m.group('fn')

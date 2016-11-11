@@ -92,7 +92,7 @@ void load_sideband(char *fn, struct pt_image *image, struct pt_config *config)
 	size_t linelen = 0;
 	int lineno = 1;
 	for (;getline(&line, &linelen, f) > 0; lineno++) {
-		uint64_t cr3, addr, off;
+		uint64_t cr3, addr, off, len;
 		unsigned pid;
 		double ts;
 		int n;
@@ -123,7 +123,7 @@ void load_sideband(char *fn, struct pt_image *image, struct pt_config *config)
 			continue;
 		}
 
-		if (sscanf(line, "%lf %u %lx %lx %lx %n", &ts, &pid, &cr3, &addr, &off, &n) != 5) {
+		if (sscanf(line, "%lf %u %lx %lx %lx %lx %n", &ts, &pid, &cr3, &addr, &off, &len, &n) != 6) {
 			fprintf(stderr, "%s:%d: Parse error\n", fn, lineno);
 			continue;
 		}
@@ -140,9 +140,7 @@ void load_sideband(char *fn, struct pt_image *image, struct pt_config *config)
 			while (--p >= line + n && isspace(*p))
 				*p = 0;
 		}
-		if (off != 0)
-			fprintf(stderr, "FIXME: mmap %s has non zero offset %lx\n", fn, off);
-		if (read_elf(line + n, image, addr, cr3)) {
+		if (read_elf(line + n, image, addr, cr3, off, len)) {
 			fprintf(stderr, "Cannot read %s: %s\n", line + n, strerror(errno));
 		}
 	}

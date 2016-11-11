@@ -548,7 +548,7 @@ int main(int ac, char **av)
 	while ((c = getopt_long(ac, av, "e:p:is:ltdk:", opts, NULL)) != -1) {
 		switch (c) {
 		case 'e':
-			if (read_elf(optarg, image, 0, 0) < 0) {
+			if (read_elf(optarg, image, 0, 0, 0, 0) < 0) {
 				fprintf(stderr, "Cannot load elf file %s: %s\n",
 						optarg, strerror(errno));
 			}
@@ -591,7 +591,7 @@ int main(int ac, char **av)
 		tsc_freq = 0;
 	if (decoder) {
 		if (kernel_fn)
-			read_elf(kernel_fn, image, 0, 0);
+			read_elf(kernel_fn, image, 0, 0, 0, 0);
 		else
 			read_kernel(image);
 		pt_insn_set_image(decoder, image);

@@ -91,7 +91,7 @@ static void find_offset(Elf *elf, uint64_t base, uint64_t *offset)
 }
 
 void add_progbits(Elf *elf, struct pt_image *image, char *fn, uint64_t base,
-		 uint64_t cr3, uint64_t offset)
+		 uint64_t cr3, uint64_t offset, uint64_t file_off, uint64_t map_len)
 {
 	size_t numphdr;
 	int i;
@@ -101,7 +101,9 @@ void add_progbits(Elf *elf, struct pt_image *image, char *fn, uint64_t base,
 		GElf_Phdr phdr;
 		gelf_getphdr(elf, i, &phdr);
 
-		if ((phdr.p_type == PT_LOAD) && (phdr.p_flags & PF_X)) {
+		if ((phdr.p_type == PT_LOAD) && (phdr.p_flags & PF_X) &&
+			phdr.p_offset >= file_off &&
+			(!map_len || phdr.p_offset + phdr.p_filesz <= file_off + map_len)) {
 			struct pt_asid asid;
 			int err;
 
@@ -109,7 +111,8 @@ void add_progbits(Elf *elf, struct pt_image *image, char *fn, uint64_t base,
 			asid.cr3 = cr3;
 			errno = 0;
 
-			err = pt_image_add_file(image, fn, phdr.p_offset, phdr.p_filesz,
+			err = pt_image_add_file(image, fn, phdr.p_offset,
+						phdr.p_filesz,
 					       &asid, phdr.p_vaddr + offset);
 			/* Duplicate. Just ignore. */
 			if (err == -pte_bad_image)
@@ -149,7 +152,8 @@ static void elf_close(Elf *elf, int fd)
 	close(fd);
 }
 
-int read_elf(char *fn, struct pt_image *image, uint64_t base, uint64_t cr3)
+int read_elf(char *fn, struct pt_image *image, uint64_t base, uint64_t cr3,
+	     uint64_t file_off, uint64_t map_len)
 {
 	uint64_t offset = 0;
 	elf_version(EV_CURRENT);
@@ -179,7 +183,7 @@ int read_elf(char *fn, struct pt_image *image, uint64_t base, uint64_t cr3)
 		if (!elf)
 			return -1;
 	}
-	add_progbits(elf, image, p, base, cr3, offset);
+	add_progbits(elf, image, p, base, cr3, offset, file_off, map_len);
 	elf_close(elf, fd);
 	return 0;
 }
