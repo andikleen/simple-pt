@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # extract base64 encoded PT snippets in a kernel log
-# base64log logfile > ptfile
+# base64log < logfile > ptfile
 import sys
 import re
 import base64
