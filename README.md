@@ -79,6 +79,9 @@ Build and install libipt. This currently requires a patched version of libipt.
 	sudo make install
 	sudo ldconfig
 
+WARNING: Please do not forget the "-b simple-pt" in the above clone line. simple-pt will
+not build using the master branch!
+
 Install libelf-elf-devel or elfutils-devel or similar depending on your distribution.
 
 Optional install udis86 if you want to see disassembled instructions:
