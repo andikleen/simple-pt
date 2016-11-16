@@ -116,6 +116,12 @@ prints the PT registers at the end of the trace.
 .PP
 .B --enable
 only enables the trace, but does not stop or dump it. Command is optional.
+.PP
+The
+.B --enable
+option only enables tracing, but does not dump. Then the
+.B --dump
+can be used later to dump a running trace.
 
 The resulting trace is put into the
 .I prefix.trace
