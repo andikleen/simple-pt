@@ -56,6 +56,8 @@
 #define container_of(ptr, type, member) \
 	((type *)((char *)(ptr) - offsetof(type, member)))
 
+bool abstime;
+
 /* Includes branches and anything with a time. Always
  * flushed on any resyncs.
  */
@@ -159,7 +161,7 @@ static void print_time_indent(void)
 static void print_time(uint64_t ts, uint64_t *last_ts,uint64_t *first_ts)
 {
 	char buf[30];
-	if (!*first_ts)
+	if (!*first_ts && !abstime)
 		*first_ts = ts;
 	if (!*last_ts)
 		*last_ts = ts;
@@ -517,6 +519,7 @@ void usage(void)
 	fprintf(stderr, "--insn/-i        dump instruction bytes\n");
 	fprintf(stderr, "--tsc/-t	  print time as TSC\n");
 	fprintf(stderr, "--dwarf/-d	  show line number information\n");
+	fprintf(stderr, "--abstime/-a	  print absolute time instead of relative to trace\n");
 #if 0 /* needs more debugging */
 	fprintf(stderr, "--loop/-l	  detect loops\n");
 #endif
@@ -532,6 +535,7 @@ struct option opts[] = {
 	{ "tsc", no_argument, NULL, 't' },
 	{ "dwarf", no_argument, NULL, 'd' },
 	{ "kernel", required_argument, NULL, 'k' },
+	{ "abstime", no_argument, NULL, 'a' },
 	{ }
 };
 
@@ -545,7 +549,7 @@ int main(int ac, char **av)
 	char *kernel_fn = NULL;
 
 	pt_config_init(&config);
-	while ((c = getopt_long(ac, av, "e:p:is:ltdk:", opts, NULL)) != -1) {
+	while ((c = getopt_long(ac, av, "e:p:is:ltdk:a", opts, NULL)) != -1) {
 		switch (c) {
 		case 'e':
 			if (read_elf(optarg, image, 0, 0, 0, 0) < 0) {
@@ -582,6 +586,9 @@ int main(int ac, char **av)
 			break;
 		case 'k':
 			kernel_fn = optarg;
+			break;
+		case 'a':
+			abstime = true;
 			break;
 		default:
 			usage();
