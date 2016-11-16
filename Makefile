@@ -14,10 +14,11 @@ MAN := sptdump.man fastdecode.man sptdecode.man ptfeature.man sptcmd.man \
 	sptarchive.man
 
 KDIR = /lib/modules/`uname -r`/build
-obj-m := simple-pt.o
+obj-m := simple-pt.o test-ftrace.o
 M := make -C ${KDIR} M=`pwd`
 
 CFLAGS_simple-pt.o := -DTRACE_INCLUDE_PATH=${M}
+CFLAGS_test-ftrace.o := -DTRACE_INCLUDE_PATH=${M}
 
 MANHTML := $(MAN:.man=.html)
 

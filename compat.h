@@ -4,7 +4,7 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
 static struct tracepoint *exec_tp;
 
-static int compat_register_trace_sched_process_exec(void (*probe)(void *, struct task_struct *, pid_t, struct linux_binprm *),
+static inline int compat_register_trace_sched_process_exec(void (*probe)(void *, struct task_struct *, pid_t, struct linux_binprm *),
 						void *arg)
 {
 	/* Workaround for newer kernels which use non exported symbols */
@@ -14,7 +14,7 @@ static int compat_register_trace_sched_process_exec(void (*probe)(void *, struct
 	return tracepoint_probe_register(exec_tp, (void *)probe, NULL);
 }
 
-static void compat_unregister_trace_sched_process_exec(void (*probe)(void *, struct task_struct *, pid_t, struct linux_binprm *),
+static inline void compat_unregister_trace_sched_process_exec(void (*probe)(void *, struct task_struct *, pid_t, struct linux_binprm *),
 						void *arg)
 {
 	if (exec_tp)
