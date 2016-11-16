@@ -23,6 +23,7 @@ sptcmd [options] cmd
 --keep	    -k Keep kernel trace points running after end.
 --enable    -E Only enable tracing, but don't dump. cmd is optional
 --dump	    -D Only dump already running trace (after sptcmd -E)
+--disable      Only disable already running trace. Can be combined with --dump.
 
 --start-addr addr -s addr
 	       Start trace on CPU when kernel symbol start is hit. Can be address
@@ -49,7 +50,7 @@ PATH=$PATH:$(dirname $0)
 
 unset COMM KERNEL TRACE USERMODE DISRETC DRIVER DONTDUMP PREFIX ENUMALL
 unset CYC_THRESH MTC_FREQ PSB_FREQ FILTER TSTOP START STOP FORCE KEEP
-unset PRINT_REGS ENABLE_ONLY DUMP_ONLY
+unset PRINT_REGS ENABLE_ONLY DUMP_ONLY DISABLE
 declare -a RANGE_START RANGE_END RANGE_CFG
 NUM_RANGE=0
 MAX_RANGE=2
@@ -86,6 +87,7 @@ for ((j = 0; j < $#; j++)) ; do
 	--print-regs) ARGS[$j]="-@" ; PRINT_REGS=1 ;;
 	--enable) ARGS[$j]=-E ;;
 	--dump) ARGS[$j]=-D ;;
+	--disable) ARGS[$j]="-@" ; DISABLE=1 ;;
 	--) ARGS[$j]=${ARGS[$j]}; B=1 ;;
 	--*) usage ; exit 1 ;;
 	*) ARGS[$j]="${ARGS[$j]}" ;;
@@ -156,11 +158,6 @@ FORCE=${FORCE:-0}
 KEEP=${KEEP:-}
 PRINT_REGS=${PRINT_REGS:-0}
 
-if [ "$KERNEL" != 1 -a "$COMM" = "" ] ; then
-	echo >&2 WARNING Using -K without a -c filter.
-	echo >&2 WARNING Decoder will not be able to trace multiple processes.
-fi
-
 if [ "$EUID" -ne 0 ] ; then
 	echo >&2 sptcmd needs to run as root
 	exit 1
@@ -179,7 +176,20 @@ if [ -n "$DUMP_ONLY" ] ; then
 	OLDSTART="`cat $C/start`"
 fi
 
+if [ "$KERNEL" != 1 -a "$COMM" = "" ] ; then
+	echo >&2 WARNING Using -K without a -c filter.
+	echo >&2 WARNING Decoder will not be able to trace multiple processes.
+fi
+
 T=/sys/kernel/debug/tracing
+
+if [ -n "$DISABLE" ] ; then
+	echo 0 > $C/start
+	if [ -z "$DUMP_ONLY" ] ; then
+		exit 0
+	fi
+fi
+
 if [ -z "$DUMP_ONLY" ] ; then
 	if [ -n "$COMM" ] ; then
 		echo $COMM > $C/comm_filter

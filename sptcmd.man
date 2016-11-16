@@ -121,7 +121,11 @@ The
 .B --enable
 option only enables tracing, but does not dump. Then the
 .B --dump
-can be used later to dump a running trace.
+can be used later to dump a running trace. When the
+.B --disable
+option is specified an already running trace is disabled. Can be combined
+with
+.I --dump.
 
 The resulting trace is put into the
 .I prefix.trace
