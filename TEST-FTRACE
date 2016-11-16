@@ -1,0 +1,21 @@
+#!/bin/sh
+# test ftrace trace points work from modules
+
+set -e
+if lsmod | grep test_ftrace ; then
+	rmmod test-ftrace
+fi
+/sbin/insmod test-ftrace.ko
+T=/sys/kernel/debug/tracing
+echo 1 > $T/events/pttp/enable
+echo > $T/trace
+echo 1 > /sys/module/test_ftrace/parameters/trace
+cat $T/trace > trace.tmp$$
+grep msr: trace.tmp$$
+grep process_cr3: trace.tmp$$
+grep exec_cr3: trace.tmp$$
+grep mmap_cr3: trace.tmp$$
+rm trace.tmp$$
+rmmod test-ftrace
+echo SUCCEEDED
+
