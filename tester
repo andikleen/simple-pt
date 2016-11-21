@@ -18,6 +18,8 @@ trap failed ERR 0
 #export LD_LIBRARY_PATH=$(pwd)/../processor-trace/lib
 export PATH=$PATH:.
 
+./TEST-FTRACE
+
 PREFIX=stest
 
 EXTRA="-t $1 $2 $3"
