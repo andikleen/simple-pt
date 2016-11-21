@@ -7,7 +7,8 @@ Linux. PT can trace all branches executed by the CPU at the hardware level
 with moderate overhead. A PT decoder then uses sideband trace data to decode the branch
 traces. 
 
-PT is supported on Intel 5th generation Core (Broadwell) and 6th generation Core (Skylake) CPUs.
+PT is supported on Intel 5th generation Core (Broadwell), 6th generation Core (Skylake) CPUs,
+as well as Goldmont based Atom CPUs (Intel Joule, Apollo Lake)
 
 # Example
 
@@ -63,6 +64,7 @@ Simple PT has the following functionality
 * start and stop traces at specific kernel addresses
 * support tracing multiple processes
 * print all function calls in "ftrace" style
+* disasseembling all executed instructions (requires udis86 library)
 * simple driver that could be ported to older kernel releases or other operating systems
 * simple code base that is easily changed.
 * modular "unix style" design with simple tools that do only one thing
@@ -132,6 +134,21 @@ everything global is traced.
 sptdecode then decodes the trace for a CPU using the side band information.
 When it should decode kernel code it needs to run as root to be able to
 read /proc/kcore. If it's not run as root kernel code will not be shown.
+
+Another way to use simple-pt is to run the workload with PT running
+in the background and only dump on an event.
+
+Start trace and dump trace on event:
+
+	sudo ./sptcmd --enable
+	<run workload>
+	<some event of interest happens and triggers:>
+	sudo ./sptcmd --dump
+	sudo ./sptdecode --sideband ptout.sideband --pt ptout.0 | less
+
+Another way is to use --stop-address or --stop-range to stop the trace
+on specific kernel symbols being executed. Note that these options
+to affect the trace on their current CPU.
 
 Run test suite
 
@@ -226,19 +243,22 @@ PT buffers.
 error message load the simple_pt module like this
 
 	insmod simple_pt.ko tasklist_lock_ptr=0x$(grep tasklist_lock /boot/System.map-$(uname -r) | awk ' {print $1}')
+* Various older Linux kernels have problems with ftrace in kernel modules. simple-pt relies on ftrace
+output for its sideband. "tester" has a special test. If there are problems likely the workarounds
+in "compat.h" (e.g. the ifdefs) need to be adjusted. Upgrading to a newer kernel fixes the problem too.
 
-# Limitations:
+# Current limitations:
 
 * When kernel tracing is disabled (-K) multiple processes cannot be distinguished by the decoder.
 
 * Enabling/Disabling tracing causes the kernel to modify itself, which can cause the PT decoder
   to lose synchronization. sptcmd disables trace points. Workaround is to keep trace points
-  running after the trace ends with -k, or disable kernel tracing. his can sometimes affect the
+  running after the trace ends with -k, or disable kernel tracing. This can sometimes affect the
   test suite. If this happens try "tester -k"
 
 * sptcmd does not continuously save side band data, so events at the beginning
   of a trace may not be saved. For complex workloads it may be needed to increase the trace buffers 
-  in /sys/kernel/debug/tracing/buffer_size_kb
+  in /sys/kernel/debug/tracing/buffer_size_kb.
 
 * The decoder does not (currently) support reusing the same address region in a process for
   different code (for example after dlclose/dlopen)
