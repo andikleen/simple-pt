@@ -67,6 +67,8 @@ cr3s = dict()
 for l in arguments.trace:
     if l.startswith('#'):
         continue
+    # handle fn= and comm= with spaces
+    l = re.sub(r'(fn|comm)=(.*)', lambda x: x.group(0).replace(" ", "_"), l)
     f = l.split()
     try:
         proc, cpu, flags, ts, tp = f[:5]
