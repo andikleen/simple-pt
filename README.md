@@ -68,7 +68,7 @@ Simple PT has the following functionality
 * simple driver that could be ported to older kernel releases or other operating systems
 * simple code base that is easily changed.
 * modular "unix style" design with simple tools that do only one thing
-* can dump branches before panic to kernel log
+* can dump branches before panic to kernel log and decode
 
 # Installation
 
@@ -268,6 +268,8 @@ in "compat.h" (e.g. the ifdefs) need to be adjusted. Upgrading to a newer kernel
 * On Skylake the trace time occasionally jumps backwards after frequency changes.
 
 * Decoder loses synchronization in some cases where it shouldn't.
+
+* Binaries with spaces in the name are not supported (due to limitations in sptsideband.py)
 
 # Porting simple-pt
 
