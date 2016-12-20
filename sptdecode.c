@@ -52,6 +52,12 @@
 #include <udis86.h>
 #endif
 
+#ifdef HAVE_XED
+#include <xed-interface.h>
+#include <xed-decode.h>
+#include <xed-decoded-inst-api.h>
+#endif
+
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(*(x)))
 #define container_of(ptr, type, member) \
 	((type *)((char *)(ptr) - offsetof(type, member)))
@@ -218,10 +224,89 @@ static void init_dis(struct dis *d)
 	ud_set_sym_resolver(&d->ud_obj, dis_resolve);
 }
 
+void dis_print_insn(struct dis *d, struct pt_insn *insn, uint64_t cr3)
+{
+	d->cr3 = cr3;
+	if (insn->mode == ptem_32bit)
+		ud_set_mode(&d->ud_obj, 32);
+	else
+		ud_set_mode(&d->ud_obj, 64);
+	ud_set_pc(&d->ud_obj, insn->ip);
+	ud_set_input_buffer(&d->ud_obj, insn->raw, insn->size);
+	ud_disassemble(&d->ud_obj);
+	printf("%s", ud_insn_asm(&d->ud_obj));
+}
+
+static void dis_init(void) {}
+
+#elif defined(HAVE_XED)
+
+struct dis {
+	xed_state_t state;
+	xed_print_info_t info;
+	uint64_t cr3;
+};
+
+int dis_resolve(xed_uint64_t addr, char *buf, xed_uint32_t buflen,
+	xed_uint64_t *off, void *data)
+{
+	struct dis *d = data;
+	struct sym *sym = findsym(addr, d->cr3);
+	if (sym) {
+		*off = addr - sym->val;
+		snprintf(buf, buflen, "%s", sym->name);
+		return 1;
+	}
+	return 0;
+}
+
+static void init_dis(struct dis *d)
+{
+	xed_state_zero(&d->state);
+	xed_init_print_info(&d->info);
+	d->info.syntax = XED_SYNTAX_ATT;
+	d->info.disassembly_callback = dis_resolve;
+	d->info.context = d;
+}
+
+void dis_print_insn(struct dis *d, struct pt_insn *insn, uint64_t cr3)
+{
+	xed_decoded_inst_t inst;
+	xed_error_enum_t err;
+	char out[256];
+
+	d->cr3 = cr3;
+	if (insn->mode == ptem_32bit)
+		xed_state_set_machine_mode(&d->state,
+					   XED_MACHINE_MODE_LEGACY_32);
+	else
+		xed_state_set_machine_mode(&d->state,
+					   XED_MACHINE_MODE_LONG_64);
+	xed_decoded_inst_zero_set_mode(&inst, &d->state);
+	err = xed_decode(&inst, insn->raw, insn->size);
+	if (err != XED_ERROR_NONE) {
+		printf("%s", xed_error_enum_t2str(err));
+		return;
+	}
+	d->info.p = &inst;
+	d->info.buf = out;
+	d->info.blen = sizeof(out);
+	d->info.runtime_address = insn->ip;
+	if (!xed_format_generic(&d->info))
+		strcpy(out, "Cannot print");
+	printf("%s", out);
+}
+
+static void dis_init(void)
+{
+	xed_tables_init();
+}
 #else
 
 struct dis {};
 static void init_dis(struct dis *d) {}
+void dis_print_insn(struct dis *d, struct pt_insn *insn, uint64_t cr3) {}
+static void dis_init(void) {}
 
 #endif
 
@@ -240,17 +325,8 @@ static void print_insn(struct pt_insn *insn, uint64_t ts,
 	n = 0;
 	for (i = 0; i < insn->size; i++)
 		n += printf("%02x ", insn->raw[i]);
-#ifdef HAVE_UDIS86
-	d->cr3 = cr3;
-	if (insn->mode == ptem_32bit)
-		ud_set_mode(&d->ud_obj, 32);
-	else
-		ud_set_mode(&d->ud_obj, 64);
-	ud_set_pc(&d->ud_obj, insn->ip);
-	ud_set_input_buffer(&d->ud_obj, insn->raw, insn->size);
-	ud_disassemble(&d->ud_obj);
-	printf("%*s%s", NUM_WIDTH - n, "", ud_insn_asm(&d->ud_obj));
-#endif
+	printf("%*s", NUM_WIDTH - n, "");
+	dis_print_insn(d, insn, cr3);
 	if (insn->enabled)
 		printf("\tENA");
 	if (insn->disabled)
@@ -516,7 +592,11 @@ void usage(void)
 	fprintf(stderr, "-e/--elf binary[:codebin]  ELF input PT files. Can be specified multiple times.\n");
 	fprintf(stderr, "                   When codebin is specified read code from codebin\n");
 	fprintf(stderr, "-s/--sideband log  Load side band log. Needs access to binaries\n");
+#if defined(HAVE_UDIS86) || defined(HAVE_XED)
+	fprintf(stderr, "--insn/-i	dump instruction bytes and assembler\n");
+#else
 	fprintf(stderr, "--insn/-i        dump instruction bytes\n");
+#endif
 	fprintf(stderr, "--tsc/-t	  print time as TSC\n");
 	fprintf(stderr, "--dwarf/-d	  show line number information\n");
 	fprintf(stderr, "--abstime/-a	  print absolute time instead of relative to trace\n");
@@ -567,6 +647,7 @@ int main(int ac, char **av)
 			break;
 		case 'i':
 			dump_insn = true;
+			dis_init();
 			break;
 		case 's':
 			if (decoder) {

@@ -1,8 +1,13 @@
 USER_CFLAGS := -g -Wall
+ifneq ($(XED),)
+USER_CFLAGS += -DHAVE_XED -I ${XED}/include
+DIS_LDFLAGS += -L ${XED}/lib
+DIS_LDLIBS += -lxed
+endif
 ifeq (${UDIS86},1)
 USER_CFLAGS += -DHAVE_UDIS86 -I ../udis86
-UDIS86_LDFLAGS := -L ../udis86/libudis86/.libs
-UDIS86_LDLIBS := -ludis86
+DIS_LDFLAGS := -L ../udis86/libudis86/.libs
+DIS_LDLIBS := -ludis86
 endif
 LIBIPT_LIB := ../processor-trace/lib
 LIBIPT_INCLUDE := ../processor-trace/libipt/include
@@ -51,8 +56,8 @@ elf.o: CFLAGS += -I ${LIBIPT_INCLUDE}
 dtools.o: CFLAGS += -I ${LIBIPT_INCLUDE}
 kernel.o: CFLAGS += -I ${LIBIPT_INCLUDE}
 sptdecode: LDFLAGS += -L ${LIBIPT_LIB}
-sptdecode: LDFLAGS += ${UDIS86_LDFLAGS}
-sptdecode: LDLIBS += ${UDIS86_LDLIBS}
+sptdecode: LDFLAGS += ${DIS_LDFLAGS}
+sptdecode: LDLIBS += ${DIS_LDLIBS}
 sptdecode: LDLIBS += -lipt -lelf -ldwarf
 sptdecode: sptdecode.o map.o elf.o symtab.o dtools.o kernel.o dwarf.o
 
