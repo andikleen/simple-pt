@@ -1,7 +1,6 @@
 USER_CFLAGS := -g -Wall
 ifneq ($(XED),)
-USER_CFLAGS += -DHAVE_XED -I ${XED}/include
-DIS_LDFLAGS += -L ${XED}/lib
+USER_CFLAGS += -DHAVE_XED=1
 DIS_LDLIBS += -lxed
 endif
 ifeq (${UDIS86},1)
