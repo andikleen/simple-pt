@@ -53,9 +53,9 @@
 #endif
 
 #ifdef HAVE_XED
-#include <xed-interface.h>
-#include <xed-decode.h>
-#include <xed-decoded-inst-api.h>
+#include <xed/xed-interface.h>
+#include <xed/xed-decode.h>
+#include <xed/xed-decoded-inst-api.h>
 #endif
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(*(x)))
