@@ -294,7 +294,6 @@ static DEFINE_PER_CPU(unsigned long, pt_buffer_cpu);
 static DEFINE_PER_CPU(u64 *, topa_cpu);
 static DEFINE_PER_CPU(bool, pt_running);
 static DEFINE_PER_CPU(u64, pt_offset);
-static int pt_error;
 static bool initialized;
 static bool has_cr3_match;
 static unsigned psb_freq_mask;
@@ -647,7 +646,7 @@ static unsigned topa_entries(int cpu)
 	return n;
 }
 
-static void simple_pt_cpu_init(void *arg)
+static int simple_pt_cpu_init(void *arg)
 {
 	int cpu = smp_processor_id();
 	u64 ctl;
@@ -655,20 +654,19 @@ static void simple_pt_cpu_init(void *arg)
 	/* check for pt already active */
 	if (pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &ctl) < 0) {
 		pr_err("cpu %d, Cannot access RTIT_CTL\n", cpu);
-		pt_error = -EIO;
-		return;
+		return -EIO;
 	}
 
 	if (ctl & TRACE_EN) {
 		if (!force) {
 			pr_err("cpu %d, PT already active: %llx\n", cpu, ctl);
-			pt_error = -EBUSY;
-			return;
+			return -EBUSY;
 		}
 		pr_info("forcibly taking over PT on %d: %llx\n", cpu, ctl);
 	}
 
 	simple_pt_init_msrs();
+	return 0;
 }
 
 static inline int file_get_cpu(struct file *file)
@@ -869,20 +867,6 @@ static struct kprobe mmap_kp = {
 	.pre_handler = probe_mmap_region,
 };
 
-static int simple_pt_cpu(struct notifier_block *nb, unsigned long action,
-			 void *v)
-{
-	switch (action) {
-	case CPU_STARTING:
-		simple_pt_cpu_init(NULL);
-		break;
-	case CPU_DYING:
-		stop_pt(NULL);
-		break;
-	}
-	return NOTIFY_OK;
-}
-
 static bool is_psb(void *p)
 {
 	return *(u64 *)p == 0x8202820282028202ULL && ((u64 *)p)[1] == 0x8202820282028202ULL;
@@ -963,10 +947,6 @@ static void print_last_branches(int num_psbs)
 	printk(KERN_INFO "PT DUMP END %llx\n", offset);
 }
 
-static struct notifier_block cpu_notifier = {
-	.notifier_call = simple_pt_cpu,
-};
-
 /* Stop PT on all CPUs so that a crash dump has a good log */
 static int simple_pt_panic(struct notifier_block *nb, unsigned long action,
 			   void *v)
@@ -1005,8 +985,6 @@ static struct syscore_ops simple_pt_syscore = {
 	.suspend = simple_pt_suspend,
 	.resume = simple_pt_resume,
 };
-
-static void free_all_buffers(void);
 
 static int simple_pt_cpuid(void)
 {
@@ -1047,10 +1025,51 @@ static int simple_pt_cpuid(void)
 	return 0;
 }
 
+static int spt_hotplug_state = -1;
+
+
+static void free_topa(u64 *topa)
+{
+	int j;
+
+	for (j = 1; j < pt_num_buffers; j++) {
+		if (topa[j] & TOPA_END)
+			break;
+		free_pages((unsigned long)__va(topa[j] & PAGE_MASK),
+				pt_buffer_order);
+	}
+}
+
+static int spt_cpu_startup(unsigned int cpu)
+{
+	int err;
+	printk("startup %u\n", cpu);
+	err = simple_pt_buffer_init(cpu);
+	if (err)
+		return err;
+	return simple_pt_cpu_init(NULL);
+}
+
+static int spt_cpu_teardown(unsigned int cpu)
+{
+	printk("teardown %u\n", cpu);
+	stop_pt(NULL);
+	if (per_cpu(topa_cpu, cpu)) {
+		u64 *topa = per_cpu(topa_cpu, cpu);
+		free_topa(topa);
+		free_page((unsigned long)topa);
+		per_cpu(topa_cpu, cpu) = NULL;
+	}
+	if (per_cpu(pt_buffer_cpu, cpu)) {
+		free_pages(per_cpu(pt_buffer_cpu, cpu), pt_buffer_order);
+		per_cpu(pt_buffer_cpu, cpu) = 0;
+	}
+	return 0;
+}
+
 static int simple_pt_init(void)
 {
 	int err;
-	int cpu;
 
 	if (THIS_MODULE->taints)
 		fix_tracepoints();
@@ -1065,23 +1084,12 @@ static int simple_pt_init(void)
 		return err;
 	}
 
-	get_online_cpus();
-	for_each_online_cpu (cpu) {
-		err = simple_pt_buffer_init(cpu);
-		if (err)
-			goto out_buffers;
-	}
-
-	on_each_cpu(simple_pt_cpu_init, NULL, 1);
-
-	/* Only needed when handling CPU hotplug */
-	register_cpu_notifier(&cpu_notifier);
-	put_online_cpus();
-	if (pt_error) {
-		pr_err("PT initialization failed\n");
-		err = pt_error;
-		goto out_buffers2;
-	}
+	err = cpuhp_setup_state(CPUHP_AP_ONLINE_DYN, "simple-pt",
+				       spt_cpu_startup,
+				       spt_cpu_teardown);
+	if (err < 0)
+		goto out_buffers;
+	spt_hotplug_state = err;
 
 	/* Trace exec->cr3 */
 	err = compat_register_trace_sched_process_exec(probe_sched_process_exec, NULL);
@@ -1108,42 +1116,9 @@ static int simple_pt_init(void)
 	pr_info("%s\n", start ? "running" : "loaded");
 	return 0;
 
-out_buffers2:
-	unregister_cpu_notifier(&cpu_notifier);
 out_buffers:
-	free_all_buffers();
 	misc_deregister(&simple_pt_miscdev);
 	return err;
-}
-
-static void free_topa(u64 *topa)
-{
-	int j;
-
-	for (j = 1; j < pt_num_buffers; j++) {
-		if (topa[j] & TOPA_END)
-			break;
-		free_pages((unsigned long)__va(topa[j] & PAGE_MASK),
-				pt_buffer_order);
-	}
-}
-
-static void free_all_buffers(void)
-{
-	int cpu;
-
-	unregister_cpu_notifier(&cpu_notifier);
-	get_online_cpus();
-	for_each_possible_cpu (cpu) {
-		if (per_cpu(topa_cpu, cpu)) {
-			u64 *topa = per_cpu(topa_cpu, cpu);
-			free_topa(topa);
-			free_page((unsigned long)topa);
-		}
-		if (per_cpu(pt_buffer_cpu, cpu))
-			free_pages(per_cpu(pt_buffer_cpu, cpu), pt_buffer_order);
-	}
-	put_online_cpus();
 }
 
 static void simple_pt_exit(void)
@@ -1152,14 +1127,13 @@ static void simple_pt_exit(void)
 		unregister_kprobe(&start_kprobe);
 	if (stop_kprobe.addr)
 		unregister_kprobe(&stop_kprobe);
-	on_each_cpu(stop_pt, NULL, 1);
-	free_all_buffers();
+	if (spt_hotplug_state >= 0)
+		cpuhp_remove_state(spt_hotplug_state);
 	misc_deregister(&simple_pt_miscdev);
 	compat_unregister_trace_sched_process_exec(probe_sched_process_exec, NULL);
 	unregister_kprobe(&mmap_kp);
 	atomic_notifier_chain_unregister(&panic_notifier_list, &panic_notifier);
 	unregister_syscore_ops(&simple_pt_syscore);
-	unregister_cpu_notifier(&cpu_notifier);
 	pr_info("exited\n");
 }
 
