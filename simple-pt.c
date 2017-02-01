@@ -269,6 +269,8 @@ static struct kernel_param_ops trace_stop_ops = {
 	.get = param_get_ulong,
 };
 
+/* Support for Linux panic dumps (optional) */
+
 static int pt_num_buffers = 1;
 static int log_dump = 0;
 static void print_last_branches(int num_psbs);
