@@ -502,6 +502,7 @@ static int decode(struct pt_insn_decoder *decoder)
 			int sic = 0;
 			while (!err && sic < NINSN - 1) {
 				struct pt_insn insn;
+				struct pt_asid asid;
 				struct sinsn *si = &insnbuf[sic];
 
 				insn.ip = 0;
@@ -512,7 +513,8 @@ static int decode(struct pt_insn_decoder *decoder)
 					break;
 				}
 				// XXX use lost counts
-				pt_insn_get_cr3(decoder, &si->cr3);
+				pt_insn_asid(decoder, &asid, sizeof(struct pt_asid));
+				si->cr3 = asid.cr3;
 				if (dump_insn)
 					print_insn(&insn, si->ts, &dis, si->cr3);
 				insncnt++;
