@@ -72,26 +72,29 @@ Simple PT has the following functionality
 
 # Installation
 
-Build and install libipt. This currently requires a patched version of libipt.
+__Note: The installation requirements for simple-pt have changed. It now requires
+the upstream version of libipt. No special branches needed anymore.
+Also udis86 has been replaced with xed__
 
-	git clone -b simple-pt https://github.com/andikleen/processor-trace
+Build and install libipt
+
+	git clone https://github.com/01org/processor-trace
 	cd processor-trace
 	cmake .
 	make
 	sudo make install
 	sudo ldconfig
 
-WARNING: Please do not forget the "-b simple-pt" in the above clone line. simple-pt will
-not build using the master branch!
-
 Install libelf-elf-devel or elfutils-devel or similar depending on your distribution.
 
-Optional install udis86 if you want to see disassembled instructions:
+Optionally install xed if you want to see disassembled instructions:
 
-	git clone https://udis86.git.sourceforge.net/gitroot/udis86/udis86
-	cd udis86
-	./configure
-	make
+	git clone https://github.com/intelxed/xed
+	cd xed
+	mkdir obj
+	cd obj
+	../mfile.py
+	sudo ../mfile.py --prefix=/usr/local install
 
 Clone simple-pt
 
@@ -110,9 +113,9 @@ Build the user tools
 
 	make user
 
-If you installed udis86 use
+If you installed xed use
 
-	make user UDIS86=1
+	make user XED=1
 
 Check if your system supports PT
 
