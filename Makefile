@@ -3,11 +3,6 @@ ifneq ($(XED),)
 USER_CFLAGS += -DHAVE_XED=1
 DIS_LDLIBS += -lxed
 endif
-ifeq (${UDIS86},1)
-USER_CFLAGS += -DHAVE_UDIS86 -I ../udis86
-DIS_LDFLAGS := -L ../udis86/libudis86/.libs
-DIS_LDLIBS := -ludis86
-endif
 LIBIPT_LIB := ../processor-trace/lib
 LIBIPT_INCLUDE := ../processor-trace/libipt/include
 

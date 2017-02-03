@@ -48,10 +48,6 @@
 #include "kernel.h"
 #include "dwarf.h"
 
-#ifdef HAVE_UDIS86
-#include <udis86.h>
-#endif
-
 #ifdef HAVE_XED
 #include <xed/xed-interface.h>
 #include <xed/xed-decode.h>
@@ -199,47 +195,7 @@ static char *insn_class(enum pt_insn_class class)
 	return class < ARRAY_SIZE(class_name) ? class_name[class] : "?";
 }
 
-#ifdef HAVE_UDIS86
-
-struct dis {
-	ud_t ud_obj;
-	uint64_t cr3;
-};
-
-static const char *dis_resolve(struct ud *u, uint64_t addr, int64_t *off)
-{
-	struct dis *d = container_of(u, struct dis, ud_obj);
-	struct sym *sym = findsym(addr, d->cr3);
-	if (sym) {
-		*off = addr - sym->val;
-		return sym->name;
-	} else
-		return NULL;
-}
-
-static void init_dis(struct dis *d)
-{
-	ud_init(&d->ud_obj);
-	ud_set_syntax(&d->ud_obj, UD_SYN_ATT);
-	ud_set_sym_resolver(&d->ud_obj, dis_resolve);
-}
-
-void dis_print_insn(struct dis *d, struct pt_insn *insn, uint64_t cr3)
-{
-	d->cr3 = cr3;
-	if (insn->mode == ptem_32bit)
-		ud_set_mode(&d->ud_obj, 32);
-	else
-		ud_set_mode(&d->ud_obj, 64);
-	ud_set_pc(&d->ud_obj, insn->ip);
-	ud_set_input_buffer(&d->ud_obj, insn->raw, insn->size);
-	ud_disassemble(&d->ud_obj);
-	printf("%s", ud_insn_asm(&d->ud_obj));
-}
-
-static void dis_init(void) {}
-
-#elif defined(HAVE_XED)
+#if defined(HAVE_XED)
 
 struct dis {
 	xed_state_t state;
@@ -594,7 +550,7 @@ void usage(void)
 	fprintf(stderr, "-e/--elf binary[:codebin]  ELF input PT files. Can be specified multiple times.\n");
 	fprintf(stderr, "                   When codebin is specified read code from codebin\n");
 	fprintf(stderr, "-s/--sideband log  Load side band log. Needs access to binaries\n");
-#if defined(HAVE_UDIS86) || defined(HAVE_XED)
+#if defined(HAVE_XED)
 	fprintf(stderr, "--insn/-i	dump instruction bytes and assembler\n");
 #else
 	fprintf(stderr, "--insn/-i        dump instruction bytes\n");
