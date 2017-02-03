@@ -64,7 +64,7 @@ Simple PT has the following functionality
 * start and stop traces at specific kernel addresses
 * support tracing multiple processes
 * print all function calls in "ftrace" style
-* disasseembling all executed instructions (requires udis86 library)
+* disassembling all executed instructions (requires xed library, optional)
 * simple driver that could be ported to older kernel releases or other operating systems
 * simple code base that is easily changed.
 * modular "unix style" design with simple tools that do only one thing
