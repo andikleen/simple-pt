@@ -319,4 +319,5 @@ void read_kernel(struct pt_image *image)
 	read_kcore(kelf, image);
 
 	elf_end(kelf);
+	close(kfd);
 }

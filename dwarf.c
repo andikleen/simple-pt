@@ -161,7 +161,7 @@ static struct dw_file *find_dw_file(char *fn)
 		if (!dwf->next)
 			break;
 	}
-	if (num >= MAX_FILES) {
+	if (dwf && num >= MAX_FILES) {
 		/* Free the last one to make room */
 		assert(dwf->next == NULL);
 		dw_file_free(dwf);
@@ -250,7 +250,7 @@ static struct dw_cu *find_cu(struct dw_file *dwf, Dwarf_Off off, char *fn)
 		if (!cu->next)
 			break;
 	}
-	if (num >= MAX_CU) {
+	if (cu && num >= MAX_CU) {
 		assert(cu->next == NULL);
 		dwarf_srclines_dealloc(dwf->dbg, cu->lines, cu->num_lines);
 		free(cu);
