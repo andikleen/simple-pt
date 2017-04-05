@@ -246,19 +246,19 @@ int main(int ac, char **av)
 			}
 		} else if (!strcmp(*av, "mtc_freq")) {
 			num = getnum(&av);
-			if (!(BIT(num - 1) & mtc_freq_mask)) {
+			if (num == 0 || num > 64 || !((BIT(num - 1) & mtc_freq_mask))) {
 				printf("MTC Freq %u not supported\n", num);
 				return 1;
 			}
 		} else if (!strcmp(*av, "cyc_thresh")) {
 			num = getnum(&av);
-			if (!(BIT(num - 1) & cyc_thresh_mask)) {
+			if (num == 0 || num > 64 || !((BIT(num - 1) & cyc_thresh_mask))) {
 				printf("CYC Thresh %u not supported\n", num);
 				return 1;
 			}
 		} else if (!strcmp(*av, "psb_freq")) {
 			num = getnum(&av);
-			if (!(BIT(num - 1) & psb_freq_mask)) {
+			if (num == 0 || num > 64 || ((BIT(num - 1) & psb_freq_mask))) {
 				printf("PSB Freq %u not supported\n", num);
 				return 1;
 			}
