@@ -85,7 +85,7 @@
 #define CYC_MASK	(0xf << 19)
 #define PSB_MASK	(0xf << 24)
 #define ADDR0_SHIFT	32
-#define ADDR1_SHIFT	32
+#define ADDR1_SHIFT	36
 #define ADDR0_MASK	(0xfULL << ADDR0_SHIFT)
 #define ADDR1_MASK	(0xfULL << ADDR1_SHIFT)
 #define MSR_IA32_RTIT_STATUS		0x00000571
