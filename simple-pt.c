@@ -303,6 +303,9 @@ static unsigned cyc_thresh_mask;
 static unsigned mtc_freq_mask;
 static unsigned addr_cfg_max;
 
+static bool disable_branch;
+module_param(disable_branch, bool, 0644);
+MODULE_PARM_DESC(disable_branch, "Don't enable branch tracing (if supported)");
 static int pt_buffer_order = 9;
 module_param(pt_buffer_order, int, 0444);
 MODULE_PARM_DESC(pt_buffer_order, "Order of PT buffer size per CPU (2^n pages)");
@@ -430,7 +433,8 @@ static int start_pt(void)
 	/* Otherwise wait for start trigger */
 	if (!delay_start)
 		val |= TRACE_EN;
-	val |= BRANCH_EN;
+	if (!disable_branch)
+		val |= BRANCH_EN;
 	if (!single_range)
 		val |= TO_PA;
 	if (tsc_en)
