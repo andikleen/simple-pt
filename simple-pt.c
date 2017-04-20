@@ -428,7 +428,7 @@ static int start_pt(void)
 	}
 
 	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC | TO_PA |
-		 CYC_EN | TRACE_EN |
+		 CYC_EN | TRACE_EN | BRANCH_EN | CYC_EN | MTC_EN |
 		 MTC_EN | MTC_MASK | CYC_MASK | PSB_MASK | ADDR0_MASK | ADDR1_MASK);
 	/* Otherwise wait for start trigger */
 	if (!delay_start)
