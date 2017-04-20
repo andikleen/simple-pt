@@ -29,8 +29,8 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <libdwarf/libdwarf.h>
-#include <libdwarf/dwarf.h>
+#include <libdwarf.h>
+#include <dwarf.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

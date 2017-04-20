@@ -49,6 +49,7 @@ sptdecode.o: CFLAGS += -I ${LIBIPT_INCLUDE}
 elf.o: CFLAGS += -I ${LIBIPT_INCLUDE}
 dtools.o: CFLAGS += -I ${LIBIPT_INCLUDE}
 kernel.o: CFLAGS += -I ${LIBIPT_INCLUDE}
+dwarf.o: CFLAGS += -I /usr/include/libdwarf -I /usr/local/include/libdwarf
 sptdecode: LDFLAGS += -L ${LIBIPT_LIB}
 sptdecode: LDFLAGS += ${DIS_LDFLAGS}
 sptdecode: LDLIBS += ${DIS_LDLIBS}
