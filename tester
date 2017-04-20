@@ -85,7 +85,7 @@ fi
 cp loop loop2
 cp loop loop3
 cp loop loop4
-gcc -g -o dwarf dwarf.c -DTEST=1 -g -ldwarf -lelf
+gcc -I/usr/include/libdwarf -I/usr/local/include/libdwarf -g -o dwarf dwarf.c -DTEST=1 -g -ldwarf -lelf
 dwarf loop:$MAIN loop2:$MAIN loop3:$MAIN loop4:$MAIN
 rm loop2 loop3 loop4 dwarf
 
