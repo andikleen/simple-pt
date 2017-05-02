@@ -1,4 +1,4 @@
-![simple-pt](https://halobates.de/spt-logo.png)
+![simple-pt](http://halobates.de/spt-logo.png)
 
 # Introduction
 
