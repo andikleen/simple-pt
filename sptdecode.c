@@ -69,28 +69,21 @@ struct sinsn {
 	uint64_t ts;
 	enum pt_insn_class iclass;
 	unsigned insn_delta;
+	enum pt_event_type event;
+	bool isevent;
 	bool loop_start, loop_end;
 	unsigned iterations;
-	uint32_t ratio;
-	uint64_t cr3;
-	unsigned speculative : 1, aborted : 1, committed : 1, disabled : 1, enabled : 1, resumed : 1,
-		 interrupted : 1, resynced : 1;
+	union {
+		uint64_t to;
+		uint64_t cr3;
+		struct {
+			unsigned speculative : 1, aborted : 1;
+		} tsx;
+		uint64_t payload;
+	} ev;
+	uint32_t ratio;  // XXX should be event
 };
 #define NINSN 256
-
-static void transfer_events(struct sinsn *si, struct pt_insn *insn)
-{
-#define T(x) si->x = insn->x;
-	T(speculative);
-	T(aborted);
-	T(committed);
-	T(disabled);
-	T(enabled);
-	T(resumed);
-	T(interrupted);
-	T(resynced);
-#undef T
-}
 
 static void print_ip(uint64_t ip, uint64_t cr3);
 
@@ -384,8 +377,23 @@ static void print_output(struct sinsn *insnbuf, int sic,
 	for (i = 0; i < sic; i++) {
 		struct sinsn *si = &insnbuf[i];
 
-		if (si->speculative || si->aborted || si->committed)
-			print_tsx(si, &ps->prev_spec, &ps->indent);
+		if (si->isevent) {
+			switch (si->event) {
+			case ptev_tsx:
+				print_tsx(si, &ps->prev_spec, &ps->indent);
+				break;
+			case ptev_enabled:
+				printf("trace enabled ip %lx\n", si->ip);
+				break;
+			case ptev_disabled:
+				printf("trace disabled ip %lx\n", si->ip);
+				break;
+			// XXX finish, use print_ev
+			default:
+				break;
+			}
+		}
+
 		if (si->ratio && si->ratio != gps->ratio) {
 			printf("frequency %d\n", si->ratio);
 			gps->ratio = si->ratio;
@@ -456,21 +464,63 @@ static int decode(struct pt_insn_decoder *decoder)
 		uint32_t prev_ratio = 0;
 		do {
 			int sic = 0;
-			while (!err && sic < NINSN - 1) {
+			while (sic < NINSN - 1) {
 				struct pt_insn insn;
 				struct pt_asid asid;
 				struct sinsn *si = &insnbuf[sic];
 
+				while (err > 0 && (err & pts_event) && sic < NINSN - 1) {
+					struct pt_event event;
+					err = pt_insn_event(decoder, &event, sizeof(event));
+					if (err < 0)
+						break;
+					si->event = event->type;
+					si->isevent = true;
+					switch (event->type) {
+					case ptev_enabled:
+						si->ip = event->variant.enabled.ip;
+						break;
+					case ptev_disabled:
+						si->ip = event->variant.disabled.ip;
+						break;
+					case ptev_async_branch:
+						si->ev.to = event->ip_suppressed ? 0 :
+							event->variant.async_branch.to;
+						break;
+					case ptev_paging:
+						si->ev.cr3 = event->variant.paging.cr3;
+						break;
+					case ptev_async_paging:
+						si->ev.cr3 = event->variant.async_paging.cr3;
+						break;
+					case ptev_overflow:
+						break;
+					case ptev_tsx:
+						si->ev.tsx.aborted = event->variant.tsx.aborted;
+						si->ev.tsx.speculative =
+							event->variant.tsx.speculative;
+						break;
+					case ptev_tick:
+						pt_insn_time(decoder, &si->ts, NULL, NULL);
+						break;
+					case ptev_ptwrite:
+						si->ev.value = event->variant.ptwrite.payload;
+						break;
+
+					default:
+						break;
+					}
+					si = &insnbuf[++sic];
+				}
+				if (err < 0)
+					break;
+
 				insn.ip = 0;
-				pt_insn_time(decoder, &si->ts, NULL, NULL);
 				err = pt_insn_next(decoder, &insn, sizeof(struct pt_insn));
 				if (err < 0) {
 					errip = insn.ip;
 					break;
 				}
-				// XXX use lost counts
-				pt_insn_asid(decoder, &asid, sizeof(struct pt_asid));
-				si->cr3 = asid.cr3;
 				if (dump_insn)
 					print_insn(&insn, si->ts, &dis, si->cr3);
 				insncnt++;
@@ -481,9 +531,6 @@ static int decode(struct pt_insn_decoder *decoder)
 					si->ratio = ratio;
 					prev_ratio = ratio;
 				}
-				/* This happens when -K is used. Match everything for now. */
-				if (si->cr3 == -1L)
-					si->cr3 = 0;
 				if (si->ts && si->ts == last_ts)
 					si->ts = 0;
 				si->iclass = insn.iclass;
@@ -504,7 +551,6 @@ static int decode(struct pt_insn_decoder *decoder)
 					si->insn_delta = insncnt;
 					insncnt = 1;
 					sic++;
-					transfer_events(si, &insn);
 				} else if (insn.iclass == ptic_return || insn.iclass == ptic_far_return || si->ts ||
 						insn.enabled || insn.disabled || insn.resumed || insn.interrupted ||
 						insn.resynced || insn.stopped || insn.aborted) {
@@ -512,7 +558,6 @@ static int decode(struct pt_insn_decoder *decoder)
 					si->insn_delta = insncnt;
 					insncnt = 0;
 					sic++;
-					transfer_events(si, &insn);
 				} else
 					continue;
 				if (si->ts)
