@@ -483,7 +483,7 @@ static void do_start_pt(void *arg)
 static void stop_pt(void *arg)
 {
 	u64 offset;
-	u64 ctl, status;
+	u64 ctl, status, extra;
 
 	if (!__this_cpu_read(pt_running))
 		return;
@@ -499,7 +499,11 @@ static void stop_pt(void *arg)
 	}
 	pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, 0LL);
 	pt_rdmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, &offset);
-	__this_cpu_write(pt_offset, offset >> 32);
+	extra = 0;
+	if (!single_range)
+		extra = ((offset & 0xffffffff) >> 7) <<
+			(pt_buffer_order + PAGE_SHIFT);
+	__this_cpu_write(pt_offset, (offset >> 32) + extra);
 	__this_cpu_write(pt_running, false);
 }
 
