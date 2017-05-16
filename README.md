@@ -2,13 +2,13 @@
 
 # Introduction
 
-simple-pt is a simple experimental reference implementation of Intel Processor Trace (PT) on
+simple-pt is a simple implementation of Intel Processor Trace (PT) on
 Linux. PT can trace all branches executed by the CPU at the hardware level
-with moderate overhead. A PT decoder then uses sideband trace data to decode the branch
-traces. 
+with moderate overhead. simple-pt then decodes the branch trace and
+displays a function or instruction level trace.
 
 PT is supported on Intel 5th generation Core (Broadwell), 6th generation Core (Skylake) CPUs,
-as well as Goldmont based Atom CPUs (Intel Joule, Apollo Lake)
+and later, as well as Goldmont based Atom CPUs (Intel Joule, Apollo Lake) and later.
 
 # Example
 
@@ -37,7 +37,7 @@ as well as Goldmont based Atom CPUs (Intel Joule, Apollo Lake)
 simple-pt consists of a
 * kernel driver
 * sptcmd to collect data from the kernel driver
-* sptdecode to decode PT information
+* sptdecode to display function or instruction traces
 * fastdecode to dump raw PT traces
 
 It uses the [libipt](https://github.com/01org/processor-trace) PT decoding library
@@ -50,18 +50,18 @@ If you want a full production system please use one of these. simple-pt is an ex
 
 Simple PT does *NOT* support:
 
-* It does not support long term tracing of more data than fits in the buffer (no interrupt) (use perf)
+* It does not support long term tracing of more data than fits in the buffer (no interrupt) (use perf or VTune)
 * It does not support any sampling (use perf or VTune)
 * It requires root rights to collect data (use perf)
 * It does not support interactive debugging (use gdb or hardware debuggers)
 
-Simple PT has the following functionality
+Simple PT has the following functionality:
 * set up hardware to processor trace
 * supports a ring buffer of branch data, stopped on events
 * supports flushing buffer on panic
 * does not require patching the kernel (although it cheats a bit using kprobes)
-* set up PT filters, such as kernel filter
-* start and stop traces at specific kernel addresses
+* set up PT filters, such as kernel filter, or filter ranges
+* start and stop traces at specific kernel addresses, with unlimited number
 * support tracing multiple processes
 * print all function calls in "ftrace" style
 * disassembling all executed instructions (requires xed library, optional)
@@ -74,7 +74,7 @@ Simple PT has the following functionality
 
 __Note: The installation requirements for simple-pt have changed. It now requires
 the upstream version of libipt. No special branches needed anymore.
-Also udis86 has been replaced with xed__
+Also udis86 has been replaced with xed.__
 
 Build and install libipt
 
@@ -151,7 +151,7 @@ Start trace and dump trace on event:
 
 Another way is to use --stop-address or --stop-range to stop the trace
 on specific kernel symbols being executed. Note that these options
-to affect the trace on their current CPU.
+only affect the trace on their current CPU.
 
 Run test suite
 
@@ -248,7 +248,9 @@ error message load the simple_pt module like this
 	insmod simple_pt.ko tasklist_lock_ptr=0x$(grep tasklist_lock /boot/System.map-$(uname -r) | awk ' {print $1}')
 * Various older Linux kernels have problems with ftrace in kernel modules. simple-pt relies on ftrace
 output for its sideband. "tester" has a special test. If there are problems likely the workarounds
-in "compat.h" (e.g. the ifdefs) need to be adjusted. Upgrading to a newer kernel fixes the problem too.
+in "compat.h" (e.g. the ifdefs) need to be adjusted. Upgrading to a newer kernel should fix the problem too.
+* The time in different ptout files collected on the same system without reboot is synchronized.
+However the synchronization is not fine grained enough to directly determine causality of nearby memory accesses.
 
 # Current limitations:
 
