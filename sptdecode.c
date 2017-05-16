@@ -437,10 +437,52 @@ static void print_output(struct sinsn *insnbuf, int sic,
 	}
 }
 
+static bool transfer_event(struct sinsn *si, struct pt_event *event,
+			   uint64_t *new_ts)
+{
+	si->event = event->type;
+	si->isevent = true;
+	si->ts = 0;
+	switch (event->type) {
+	case ptev_enabled:
+		si->ip = event->variant.enabled.ip;
+		break;
+	case ptev_disabled:
+		si->ip = event->variant.disabled.ip;
+		break;
+	case ptev_async_branch:
+		if (event->ip_suppressed)
+			si->ev.to = 0;
+		else
+			si->ev.to = event->variant.async_branch.to;
+		break;
+	case ptev_paging:
+		si->ev.cr3 = event->variant.paging.cr3;
+		break;
+	case ptev_async_paging:
+		si->ev.cr3 = event->variant.async_paging.cr3;
+		break;
+	case ptev_overflow:
+		break;
+	case ptev_tsx:
+		si->ev.tsx.aborted = event->variant.tsx.aborted;
+		si->ev.tsx.speculative = event->variant.tsx.speculative;
+		break;
+	case ptev_tick:
+		pt_insn_time(decoder, new_ts, NULL, NULL);
+		return false;
+	case ptev_ptwrite:
+		si->ev.value = event->variant.ptwrite.payload;
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
+
 static int decode(struct pt_insn_decoder *decoder)
 {
 	struct global_pstate gps = { .first_ts = 0, .last_ts = 0 };
-	uint64_t last_ts = 0;
 	struct local_pstate ps;
 	struct dis dis;
 
@@ -456,6 +498,9 @@ static int decode(struct pt_insn_decoder *decoder)
 			break;
 		}
 
+		uint64_t new_ts;
+		pt_insn_time(decoder, &new_ts, NULL, NULL);
+
 		memset(&ps, 0, sizeof(struct local_pstate));
 
 		unsigned long insncnt = 0;
@@ -468,52 +513,6 @@ static int decode(struct pt_insn_decoder *decoder)
 				struct pt_insn insn;
 				struct pt_asid asid;
 				struct sinsn *si = &insnbuf[sic];
-
-				while (err > 0 && (err & pts_event) && sic < NINSN - 1) {
-					struct pt_event event;
-					err = pt_insn_event(decoder, &event, sizeof(event));
-					if (err < 0)
-						break;
-					si->event = event->type;
-					si->isevent = true;
-					switch (event->type) {
-					case ptev_enabled:
-						si->ip = event->variant.enabled.ip;
-						break;
-					case ptev_disabled:
-						si->ip = event->variant.disabled.ip;
-						break;
-					case ptev_async_branch:
-						si->ev.to = event->ip_suppressed ? 0 :
-							event->variant.async_branch.to;
-						break;
-					case ptev_paging:
-						si->ev.cr3 = event->variant.paging.cr3;
-						break;
-					case ptev_async_paging:
-						si->ev.cr3 = event->variant.async_paging.cr3;
-						break;
-					case ptev_overflow:
-						break;
-					case ptev_tsx:
-						si->ev.tsx.aborted = event->variant.tsx.aborted;
-						si->ev.tsx.speculative =
-							event->variant.tsx.speculative;
-						break;
-					case ptev_tick:
-						pt_insn_time(decoder, &si->ts, NULL, NULL);
-						break;
-					case ptev_ptwrite:
-						si->ev.value = event->variant.ptwrite.payload;
-						break;
-
-					default:
-						break;
-					}
-					si = &insnbuf[++sic];
-				}
-				if (err < 0)
-					break;
 
 				insn.ip = 0;
 				err = pt_insn_next(decoder, &insn, sizeof(struct pt_insn));
@@ -531,8 +530,8 @@ static int decode(struct pt_insn_decoder *decoder)
 					si->ratio = ratio;
 					prev_ratio = ratio;
 				}
-				if (si->ts && si->ts == last_ts)
-					si->ts = 0;
+				si->ts = new_ts;
+				new_ts = 0;
 				si->iclass = insn.iclass;
 				if (insn.iclass == ptic_call || insn.iclass == ptic_far_call) {
 					si->ip = insn.ip;
@@ -543,25 +542,28 @@ static int decode(struct pt_insn_decoder *decoder)
 						break;
 					}
 					si->dst = insn.ip;
-					if (!si->ts) {
-						pt_insn_time(decoder, &si->ts, NULL, NULL);
-						if (si->ts && si->ts == last_ts)
-							si->ts = 0;
-					}
 					si->insn_delta = insncnt;
 					insncnt = 1;
 					sic++;
-				} else if (insn.iclass == ptic_return || insn.iclass == ptic_far_return || si->ts ||
-						insn.enabled || insn.disabled || insn.resumed || insn.interrupted ||
-						insn.resynced || insn.stopped || insn.aborted) {
+				} else if (insn.iclass == ptic_return ||
+					   insn.iclass == ptic_far_return ||
+					   new_ts) {
 					si->ip = insn.ip;
 					si->insn_delta = insncnt;
 					insncnt = 0;
 					sic++;
 				} else
 					continue;
-				if (si->ts)
-					last_ts = si->ts;
+				while (err > 0 && (err & pts_event) && sic < NINSN - 1) {
+					struct pt_event event;
+					err = pt_insn_event(decoder, &event, sizeof(event));
+					if (err < 0)
+						break;
+					if (transfer_event(si, &event, &new_ts))
+						si = &insnbuf[++sic];
+				}
+				if (err < 0)
+					break;
 			}
 
 			if (detect_loop)
