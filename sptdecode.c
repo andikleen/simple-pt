@@ -653,7 +653,7 @@ static void print_header(void)
 
 void usage(void)
 {
-	fprintf(stderr, "sptdecode --pt ptfile --elf elffile ...\n");
+	fprintf(stderr, "sptdecode --sideband sideband --pt ptfile ...\n");
 	fprintf(stderr, "-p/--pt ptfile   PT input file. Required\n");
 	fprintf(stderr, "-e/--elf binary[:codebin]  ELF input PT files. Can be specified multiple times.\n");
 	fprintf(stderr, "                   When codebin is specified read code from codebin\n");
