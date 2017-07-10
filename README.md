@@ -72,6 +72,9 @@ Simple PT has the following functionality:
 
 # Installation
 
+__Note: simple-pt now requires a new version of libipt (2.x), which has
+an incompatible API. Please update.__
+
 __Note: The installation requirements for simple-pt have changed. It now requires
 the upstream version of libipt. No special branches needed anymore.
 Also udis86 has been replaced with xed.__

@@ -176,6 +176,12 @@ if ! lsmod | grep -q simple_pt ; then
 	fi
 fi
 C=/sys/module/simple_pt/parameters
+
+if [ ! -d $C ] ; then
+	echo >&2 simple-pt driver did not load. please load manually.
+	exit 1
+fi
+
 if [ -n "$DUMP_ONLY" ] ; then
 	OLDSTART="`cat $C/start`"
 fi

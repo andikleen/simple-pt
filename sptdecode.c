@@ -70,71 +70,43 @@ struct sinsn {
 	uint64_t ts;
 	enum pt_insn_class iclass;
 	unsigned insn_delta;
+	enum pt_event_type event;
+	bool isevent;
 	bool loop_start, loop_end;
+	bool status_update;
 	unsigned iterations;
-	uint32_t ratio;
-	uint64_t cr3;
-	unsigned speculative : 1, aborted : 1, committed : 1, disabled : 1, enabled : 1, resumed : 1,
-		 interrupted : 1, resynced : 1;
+	union {
+		uint64_t to;
+		uint64_t cr3;
+		struct {
+			unsigned speculative : 1, aborted : 1;
+		} tsx;
+		uint64_t payload;
+	} ev;
+	uint32_t ratio;  // XXX should be event
 };
 #define NINSN 256
 
-static void transfer_events(struct sinsn *si, struct pt_insn *insn)
-{
-#define T(x) si->x = insn->x;
-	T(speculative);
-	T(aborted);
-	T(committed);
-	T(disabled);
-	T(enabled);
-	T(resumed);
-	T(interrupted);
-	T(resynced);
-#undef T
-}
-
 static void print_ip(uint64_t ip, uint64_t cr3);
-
-static void print_ev(char *name, struct sinsn *insn)
-{
-	printf("%s ", name);
-	print_ip(insn->ip, insn->cr3);
-	putchar('\n');
-}
-
-static void print_event(struct sinsn *insn)
-{
-#if 0 /* Until these flags are reliable in libipt... */
-	if (insn->disabled)
-		print_ev("disabled", insn);
-	if (insn->enabled)
-		print_ev("enabled", insn);
-	if (insn->resumed)
-		print_ev("resumed", insn);
-#endif
-	if (insn->interrupted)
-		print_ev("interrupted", insn);
-	if (insn->resynced)
-		print_ev("resynced", insn);
-}
 
 static void print_tsx(struct sinsn *insn, int *prev_spec, int *indent)
 {
-	if (insn->speculative != *prev_spec) {
-		*prev_spec = insn->speculative;
+	if (insn->ev.tsx.speculative == *prev_spec)
+		return;
+	*prev_spec = insn->ev.tsx.speculative;
+	if (insn->ev.tsx.speculative) {
 		printf("%*stransaction\n", *indent, "");
-		*indent += 4;
+		indent += 4;
+	} else {
+		// XXX check if aborted really has speculative set
+		if (insn->ev.tsx.aborted)
+			printf("%*saborted\n", *indent, "");
+		else
+			printf("%*scommitted\n", *indent, "");
+		indent -= 4;
+		if (*indent < 0)
+			*indent = 0;
 	}
-	if (insn->aborted) {
-		printf("%*saborted\n", *indent, "");
-		*indent -= 4;
-	}
-	if (insn->committed) {
-		printf("%*scommitted\n", *indent, "");
-		*indent -= 4;
-	}
-	if (*indent < 0)
-		*indent = 0;
 }
 
 // XXX print dwarf
@@ -284,14 +256,6 @@ static void print_insn(struct pt_insn *insn, uint64_t ts,
 		n += printf("%02x ", insn->raw[i]);
 	printf("%*s", NUM_WIDTH - n, "");
 	dis_print_insn(d, insn, cr3);
-	if (insn->enabled)
-		printf("\tENA");
-	if (insn->disabled)
-		printf("\tDIS");
-	if (insn->resumed)
-		printf("\tRES");
-	if (insn->interrupted)
-		printf("\tINT");
 	printf("\n");
 	if (dump_dwarf)
 		print_addr(find_ip_fn(insn->ip, cr3), insn->ip);
@@ -353,12 +317,14 @@ static int remove_loops(struct sinsn *l, int nr)
 struct local_pstate {
 	int indent;
 	int prev_spec;
+	uint64_t cr3;
 };
 
 struct global_pstate {
 	uint64_t last_ts;
 	uint64_t first_ts;
 	unsigned ratio;
+	uint64_t cr3;
 };
 
 static void print_loop(struct sinsn *si, struct local_pstate *ps)
@@ -366,15 +332,66 @@ static void print_loop(struct sinsn *si, struct local_pstate *ps)
 	if (si->loop_start) {
 		print_time_indent();
 		printf(" %5s  %*sloop start %u iterations ", "", ps->indent, "", si->iterations);
-		print_ip(si->ip, si->cr3);
+		print_ip(si->ip, ps->cr3);
 		putchar('\n');
 	}
 	if (si->loop_end) {
 		print_time_indent();
 		printf(" %5s  %*sloop end ", "", ps->indent, "");
-		print_ip(si->ip, si->cr3);
+		print_ip(si->ip, ps->cr3);
 		putchar('\n');
 	}
+}
+
+static char *simple_event[] = {
+	[ptev_enabled] = "enabled",
+	[ptev_disabled] = "disabled",
+	[ptev_async_disabled] = "async disabled",
+	[ptev_async_branch] = "async branch",
+	[ptev_overflow] = "overflow",
+	[ptev_exec_mode] = "exec mode",
+	[ptev_stop] = "stop",
+	[ptev_vmcs] = "vmcs",
+	[ptev_async_vmcs] = "async vmcs",
+	[ptev_exstop] = "exstop",
+	[ptev_mwait] = "mwait",
+	[ptev_pwre] = "power entry",
+	[ptev_pwrx] = "power exit",
+};
+
+static void print_ip_prefix(char *name, uint64_t ip, uint64_t cr3)
+{
+	printf("%s ", name);
+	print_ip(ip, cr3);
+	putchar('\n');
+}
+
+static void print_event(struct local_pstate *ps, struct sinsn *si)
+{
+	if (si->isevent && !si->status_update) {
+		switch (si->event) {
+		case ptev_tsx:
+			print_tsx(si, &ps->prev_spec, &ps->indent);
+			break;
+		case ptev_paging:
+		case ptev_async_paging:
+			ps->cr3 = si->ev.cr3;
+			break;
+		case ptev_tick:
+			/* Handled in decode */
+			break;
+		case ptev_ptwrite:
+			printf("%.*sptwrite %lx\n", ps->indent, "", si->ev.payload);
+			break;
+		default:
+			if (si->event < ARRAY_SIZE(simple_event) &&
+			    simple_event[si->event]) {
+				print_ip_prefix(simple_event[si->event], si->ip, ps->cr3);
+			}
+			break;
+		}
+	}
+
 }
 
 static void print_output(struct sinsn *insnbuf, int sic,
@@ -385,15 +402,13 @@ static void print_output(struct sinsn *insnbuf, int sic,
 	for (i = 0; i < sic; i++) {
 		struct sinsn *si = &insnbuf[i];
 
-		if (si->speculative || si->aborted || si->committed)
-			print_tsx(si, &ps->prev_spec, &ps->indent);
+		if (si->event)
+			print_event(ps, si);
 		if (si->ratio && si->ratio != gps->ratio) {
 			printf("frequency %d\n", si->ratio);
 			gps->ratio = si->ratio;
 		}
-		if (si->disabled || si->enabled || si->resumed ||
-		    si->interrupted || si->resynced)
-			print_event(si);
+
 		if (detect_loop && (si->loop_start || si->loop_end))
 			print_loop(si, ps);
 		/* Always print if we have a time (for now) */
@@ -401,7 +416,7 @@ static void print_output(struct sinsn *insnbuf, int sic,
 			print_time(si->ts, &gps->last_ts, &gps->first_ts);
 			if (si->iclass != ptic_call && si->iclass != ptic_far_call) {
 				printf("[+%4u] %*s", si->insn_delta, ps->indent, "");
-				print_ip(si->ip, si->cr3);
+				print_ip(si->ip, ps->cr3);
 				putchar('\n');
 			}
 		}
@@ -411,9 +426,9 @@ static void print_output(struct sinsn *insnbuf, int sic,
 			if (!si->ts)
 				print_time_indent();
 			printf("[+%4u] %*s", si->insn_delta, ps->indent, "");
-			print_ip(si->ip, si->cr3);
+			print_ip(si->ip, ps->cr3);
 			printf(" -> ");
-			print_ip(si->dst, si->cr3);
+			print_ip(si->dst, ps->cr3);
 			putchar('\n');
 			ps->indent += 4;
 			break;
@@ -430,17 +445,108 @@ static void print_output(struct sinsn *insnbuf, int sic,
 	}
 }
 
+static bool transfer_event(struct pt_insn_decoder *decoder,
+			   struct sinsn *si, struct pt_event *event,
+			   uint64_t *new_ts)
+{
+	si->event = event->type;
+	si->isevent = true;
+	si->ts = 0;
+	si->status_update = event->status_update;
+	switch (event->type) {
+	case ptev_enabled:
+		si->ip = event->variant.enabled.ip;
+		break;
+	case ptev_disabled:
+		si->ip = event->variant.disabled.ip;
+		break;
+	case ptev_async_branch:
+		if (event->ip_suppressed)
+			si->ev.to = 0;
+		else
+			si->ev.to = event->variant.async_branch.to;
+		break;
+	case ptev_paging:
+		si->ev.cr3 = event->variant.paging.cr3;
+		break;
+	case ptev_async_paging:
+		si->ev.cr3 = event->variant.async_paging.cr3;
+		break;
+	case ptev_overflow:
+		break;
+	case ptev_tsx:
+		si->ev.tsx.aborted = event->variant.tsx.aborted;
+		si->ev.tsx.speculative = event->variant.tsx.speculative;
+		break;
+	case ptev_tick:
+		pt_insn_time(decoder, new_ts, NULL, NULL);
+		return false;
+	case ptev_ptwrite:
+		si->ev.payload = event->variant.ptwrite.payload;
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
+
+int process_events(struct pt_insn_decoder *decoder, int *sic,
+		   struct sinsn *insnbuf, struct sinsn *si,
+		   uint64_t *new_ts, struct global_pstate *gps)
+{
+	int err;
+	struct local_pstate ps;
+
+	memset(&ps, 0, sizeof(struct local_pstate));
+
+	memset(si, 0, sizeof(struct sinsn));
+	while ((*sic) < NINSN - 1) {
+		struct pt_event event;
+		err = pt_insn_event(decoder, &event, sizeof(event));
+		if (err < 0)
+			break;
+		if (transfer_event(decoder, si, &event, new_ts))
+			si = &insnbuf[++(*sic)];
+		switch (si->event) {
+		case ptev_paging:
+		case ptev_async_paging:
+			gps->cr3 = si->ev.cr3;
+			break;
+		default:
+			break;
+		}
+		if (dump_insn) {
+			if (si->isevent)
+				print_event(&ps, si);
+			/* should print ratio too */
+		}
+		if (!(err & pts_event_pending))
+			break;
+	}
+	return err;
+}
+
 static int decode(struct pt_insn_decoder *decoder)
 {
 	struct global_pstate gps = { .first_ts = 0, .last_ts = 0 };
-	uint64_t last_ts = 0;
 	struct local_pstate ps;
 	struct dis dis;
 
 	init_dis(&dis);
 	for (;;) {
+		struct sinsn insnbuf[NINSN];
+		int sic = 0;
+
+		uint64_t new_ts = 0;
 		uint64_t pos;
 		int err = pt_insn_sync_forward(decoder);
+		if (err & pts_event_pending) {
+			err = process_events(decoder, &sic, insnbuf, insnbuf,
+					     &new_ts, &gps);
+			if (sic > 0)
+				print_output(insnbuf, sic, &ps, &gps);
+		}
+
 		if (err < 0) {
 			pt_insn_get_offset(decoder, &pos);
 			printf("%llx: sync forward: %s\n",
@@ -449,31 +555,34 @@ static int decode(struct pt_insn_decoder *decoder)
 			break;
 		}
 
+		if (new_ts == 0)
+			pt_insn_time(decoder, &new_ts, NULL, NULL);
+
 		memset(&ps, 0, sizeof(struct local_pstate));
 
 		unsigned long insncnt = 0;
-		struct sinsn insnbuf[NINSN];
 		uint64_t errip = 0;
 		uint32_t prev_ratio = 0;
 		do {
-			int sic = 0;
-			while (!err && sic < NINSN - 1) {
+			sic = 0;
+			while (sic < NINSN - 1) {
 				struct pt_insn insn;
-				struct pt_asid asid;
 				struct sinsn *si = &insnbuf[sic];
 
+				memset(si, 0, sizeof(struct sinsn));
+
 				insn.ip = 0;
-				pt_insn_time(decoder, &si->ts, NULL, NULL);
 				err = pt_insn_next(decoder, &insn, sizeof(struct pt_insn));
+				if (err & pts_event_pending) {
+					err = process_events(decoder, &sic, insnbuf, si,
+							     &new_ts, &gps);
+				}
 				if (err < 0) {
 					errip = insn.ip;
 					break;
 				}
-				// XXX use lost counts
-				pt_insn_asid(decoder, &asid, sizeof(struct pt_asid));
-				si->cr3 = asid.cr3;
 				if (dump_insn)
-					print_insn(&insn, si->ts, &dis, si->cr3);
+					print_insn(&insn, si->ts, &dis, gps.cr3);
 				insncnt++;
 				uint32_t ratio;
 				si->ratio = 0;
@@ -482,42 +591,40 @@ static int decode(struct pt_insn_decoder *decoder)
 					si->ratio = ratio;
 					prev_ratio = ratio;
 				}
-				/* This happens when -K is used. Match everything for now. */
-				if (si->cr3 == -1L)
-					si->cr3 = 0;
-				if (si->ts && si->ts == last_ts)
-					si->ts = 0;
+				si->ts = new_ts;
+				new_ts = 0;
 				si->iclass = insn.iclass;
 				if (insn.iclass == ptic_call || insn.iclass == ptic_far_call) {
 					si->ip = insn.ip;
+				again:
 					err = pt_insn_next(decoder, &insn, sizeof(struct pt_insn));
+					if (err & pts_event_pending) {
+						err = process_events(decoder, &sic, insnbuf, si,
+								     &new_ts, &gps);
+						if (err == 0) {
+							if (sic == NINSN - 1)
+								break;
+							goto again;
+						}
+					}
 					if (err < 0) {
 						si->dst = 0;
 						errip = insn.ip;
 						break;
 					}
 					si->dst = insn.ip;
-					if (!si->ts) {
-						pt_insn_time(decoder, &si->ts, NULL, NULL);
-						if (si->ts && si->ts == last_ts)
-							si->ts = 0;
-					}
 					si->insn_delta = insncnt;
 					insncnt = 1;
 					sic++;
-					transfer_events(si, &insn);
-				} else if (insn.iclass == ptic_return || insn.iclass == ptic_far_return || si->ts ||
-						insn.enabled || insn.disabled || insn.resumed || insn.interrupted ||
-						insn.resynced || insn.stopped || insn.aborted) {
+				} else if (insn.iclass == ptic_return ||
+					   insn.iclass == ptic_far_return ||
+					   new_ts) {
 					si->ip = insn.ip;
 					si->insn_delta = insncnt;
 					insncnt = 0;
 					sic++;
-					transfer_events(si, &insn);
 				} else
 					continue;
-				if (si->ts)
-					last_ts = si->ts;
 			}
 
 			if (detect_loop)
@@ -546,7 +653,7 @@ static void print_header(void)
 
 void usage(void)
 {
-	fprintf(stderr, "sptdecode --pt ptfile --elf elffile ...\n");
+	fprintf(stderr, "sptdecode --sideband sideband --pt ptfile ...\n");
 	fprintf(stderr, "-p/--pt ptfile   PT input file. Required\n");
 	fprintf(stderr, "-e/--elf binary[:codebin]  ELF input PT files. Can be specified multiple times.\n");
 	fprintf(stderr, "                   When codebin is specified read code from codebin\n");
