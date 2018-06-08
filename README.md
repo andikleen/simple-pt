@@ -92,6 +92,7 @@ Install libelf-elf-devel or elfutils-devel or similar depending on your distribu
 
 Optionally install xed if you want to see disassembled instructions:
 
+	git clone https://github.com/intelxed/mbuild.git mbuild
 	git clone https://github.com/intelxed/xed
 	cd xed
 	mkdir obj
@@ -128,6 +129,11 @@ Run a trace
 
 	sudo ./sptcmd -c ls ls
 	sudo ./sptdecode --sideband ptout.sideband --pt ptout.0 | less
+
+On recent kernels it may be needed to separate page table separation, if you
+want to use process filtering
+
+	Boot the kernel with the "nopti" argument
 
 sptcmd loads and configures the kernel driver. It runs a program with trace. It always 
 does a global trace. It writes the pt trace data to trace files for each CPU
