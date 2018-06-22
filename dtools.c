@@ -124,8 +124,13 @@ void load_sideband(char *fn, struct pt_image *image, struct pt_config *config)
 		}
 
 		if (sscanf(line, "%lf %u %lx %lx %lx %lx %n", &ts, &pid, &cr3, &addr, &off, &len, &n) != 6) {
-			fprintf(stderr, "%s:%d: Parse error\n", fn, lineno);
-			continue;
+			/* Handle old format */
+			if (sscanf(line, "%lf %u %lx %lx %lx %n", &ts, &pid, &cr3, &addr, &off, &n) == 5) {
+				len = 0;
+			} else {
+				fprintf(stderr, "%s:%d: Parse error\n", fn, lineno);
+				continue;
+			}
 		}
 		if (ts == 0 && !seen_cr3(cr3))
 			continue;
