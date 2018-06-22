@@ -814,7 +814,7 @@ static void probe_sched_process_exec(void *arg,
 	if (!match_comm())
 		return;
 
-	pathbuf = (char *)__get_free_page(GFP_KERNEL);
+	pathbuf = (char *)__get_free_page(GFP_ATOMIC);
 	if (!pathbuf)
 		return;
 
@@ -857,7 +857,7 @@ static int probe_mmap_region(struct kprobe *kp, struct pt_regs *regs)
 	if (!match_comm())
 		return 0;
 
-	pathbuf = (char *)__get_free_page(GFP_KERNEL);
+	pathbuf = (char *)__get_free_page(GFP_ATOMIC);
 	if (!pathbuf)
 		return 0;
 
