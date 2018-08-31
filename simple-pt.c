@@ -594,7 +594,7 @@ static int simple_pt_buffer_init(int cpu)
 	/* allocate buffer */
 	pt_buffer = per_cpu(pt_buffer_cpu, cpu);
 	if (!pt_buffer) {
-		pt_buffer = __get_free_pages(GFP_KERNEL|__GFP_NOWARN|__GFP_ZERO, pt_buffer_order);
+		pt_buffer = __get_free_pages(GFP_NOWAIT |GFP_KERNEL|__GFP_NOWARN|__GFP_ZERO, pt_buffer_order);
 		if (!pt_buffer) {
 			pr_err("cpu %d, Cannot allocate %ld KB buffer\n", cpu,
 					(PAGE_SIZE << pt_buffer_order) / 1024);
@@ -622,7 +622,7 @@ static int simple_pt_buffer_init(int cpu)
 				(pt_buffer_order << TOPA_SIZE_SHIFT);
 			for (; n < pt_num_buffers; n++) {
 				void *buf = (void *)__get_free_pages(
-					GFP_KERNEL|__GFP_NOWARN|__GFP_ZERO,
+					GFP_NOWAIT| GFP_KERNEL|__GFP_NOWARN|__GFP_ZERO,
 					pt_buffer_order);
 				if (!buf) {
 					pr_warn("Cannot allocate %d'th PT buffer\n", n);
