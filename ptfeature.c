@@ -168,6 +168,8 @@ int main(int ac, char **av)
 		printf("payloads are LIP:		%d\n", !!(c & BIT(31)));
 		printf("cycle accurate mode / psb freq:	%d\n", !!(b & BIT(1)));
 		printf("filtering / stop / mtc:		%d\n", !!(b & BIT(2)));
+                printf("PTWRITE support:                %d\n", !!(b & BIT(4)));
+                printf("Power events support:           %d\n", !!(b & BIT(5)));
 		printf("CR3 match:			%d\n", !!(b & BIT(0)));
 		printf("Number of address ranges:	%d\n", addr_range_num);
 		printf("Supports filter ranges:		%d\n", addr_cfg_max >= 1);
