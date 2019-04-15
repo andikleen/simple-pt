@@ -215,7 +215,7 @@ void decode_buffer(unsigned char *map, size_t len)
 						((u64)p[8] << 40) |
 						((u64)p[9] << 48) |
 						((u64)p[10] << 56));
-					p += 10;
+					p += 11;
 					continue;
 				}
 				/* TMA */
