@@ -294,7 +294,7 @@ void decode_buffer(unsigned char *map, size_t len)
 			}
 
 			if (*p == 0x19 && LEFT(8)) {  /* TSC */
-				p += 8;
+				p += 1;
 				printf("tsc\t%llu\n", get_val(&p, 7));
 				continue;
 			}
