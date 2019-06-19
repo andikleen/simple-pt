@@ -801,7 +801,7 @@ static u64 retrieve_cr3(void)
 {
 	u64 cr3;
 	asm volatile("mov %%cr3,%0" : "=r" (cr3));
-	return cr3;
+	return cr3 & ~0xfff; // mask out the PCID
 }
 
 static void probe_sched_process_exec(void *arg,
