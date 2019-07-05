@@ -410,7 +410,7 @@ static void init_mask_ptrs(void)
 }
 
 // https://carteryagemann.com/pid-to-cr3.html
-u64 pid_to_cr3(int pid) {
+static u64 pid_to_cr3(int pid) {
 	struct task_struct *task;
 	struct mm_struct *mm;
 	void *cr3_virt;
@@ -422,8 +422,10 @@ u64 pid_to_cr3(int pid) {
 
 	// mm can be NULL in some rare cases (e.g. kthreads)
 	// when this happens, we should check active_mm
-	if(mm == NULL)	mm = task->active_mm;
-	if(mm == NULL)	return 0; // this shouldn't happen, but just in case
+	if(mm == NULL) {
+		mm = task->active_mm;
+		if(mm == NULL)	return 0; // this shouldn't happen, but just in case
+	}
 
 	cr3_virt = (void*)mm->pgd;
 	cr3_phys = virt_to_phys(cr3_virt);
