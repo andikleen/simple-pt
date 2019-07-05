@@ -409,9 +409,33 @@ static void init_mask_ptrs(void)
 		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
 }
 
+// https://carteryagemann.com/pid-to-cr3.html
+u64 pid_to_cr3(int pid) {
+	struct task_struct *task;
+	struct mm_struct *mm;
+	void *cr3_virt;
+	unsigned long cr3_phys;
+
+	task = pid_task(find_vpid(pid), PIDTYPE_PID);
+	if(task == NULL)	return 0; // pid has no task_struct
+	mm = task->mm;
+
+	// mm can be NULL in some rare cases (e.g. kthreads)
+	// when this happens, we should check active_mm
+	if(mm == NULL)	mm = task->active_mm;
+	if(mm == NULL)	return 0; // this shouldn't happen, but just in case
+
+	cr3_virt = (void*)mm->pgd;
+	cr3_phys = virt_to_phys(cr3_virt);
+	return	cr3_phys + 0x1800; // ?: This offset is strange but consistently seen in the PIP messages.
+}
+
+static void set_cr3_filter(void *arg);
 static int start_pt(void)
 {
 	u64 val, oldval;
+	bool set_cr3;
+	u64	 val_cr3;
 
 	if (pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val) < 0)
 		return -1;
@@ -427,6 +451,7 @@ static int start_pt(void)
 		pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
 	}
 
+	set_cr3 = false;
 	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC | TO_PA |
 		 CYC_EN | TRACE_EN | BRANCH_EN | CYC_EN | MTC_EN |
 		 MTC_EN | MTC_MASK | CYC_MASK | PSB_MASK | ADDR0_MASK | ADDR1_MASK);
@@ -444,8 +469,15 @@ static int start_pt(void)
 	if (user)
 		val |= CTL_USER;
 	if (cr3_filter && has_cr3_match) {
-		if (!(oldval & CR3_FILTER))
-			pt_wrmsrl_safe(MSR_IA32_CR3_MATCH, 0ULL);
+		if(cr3_filter > 1) {
+			val_cr3 = pid_to_cr3(cr3_filter);
+			set_cr3 = true;
+			comm_filter[0] = '\0';	// Do not re-target on exec()
+		}
+		else if(!(oldval & CR3_FILTER)) {
+			val_cr3 = 0;
+			set_cr3 = true;
+		}
 		val |= CR3_FILTER;
 	}
 	if (dis_retc)
@@ -467,6 +499,7 @@ static int start_pt(void)
 		pt_wrmsrl_safe(MSR_IA32_ADDR1_END, addr1_end);
 	}
 
+	if(set_cr3)	set_cr3_filter(&val_cr3);
 	if (pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
 		return -1;
 	__this_cpu_write(pt_running, true);
@@ -797,8 +830,7 @@ static bool match_comm(void)
 	return !strcmp(current->comm, comm_filter);
 }
 
-static u64 retrieve_cr3(void)
-{
+inline u64 retrieve_cr3(void) {
 	u64 cr3;
 	asm volatile("mov %%cr3,%0" : "=r" (cr3));
 	return cr3;
@@ -808,7 +840,7 @@ static void probe_sched_process_exec(void *arg,
 				     struct task_struct *p, pid_t old_pid,
 				     struct linux_binprm *bprm)
 {
-	u64 cr3 = retrieve_cr3();
+	u64 cr3;
 	char *pathbuf, *path;
 
 	if (!match_comm())
@@ -823,6 +855,7 @@ static void probe_sched_process_exec(void *arg,
 	if (IS_ERR(path))
 		goto out;
 
+	cr3 = retrieve_cr3();
 	trace_exec_cr3(cr3, path, current->pid);
 	if (comm_filter[0] && has_cr3_match) {
 		mutex_lock(&restart_mutex);
