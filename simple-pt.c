@@ -470,7 +470,7 @@ static int start_pt(void)
 		val |= CTL_USER;
 	if (cr3_filter && has_cr3_match) {
 		if(cr3_filter > 1) {
-			val_cr3 = pid_to_cr3(cr3_filter);
+			val_cr3 = pid_to_cr3(cr3_filter) & ~0xFFF;
 			set_cr3 = true;
 			comm_filter[0] = '\0';	// Do not re-target on exec()
 		}
