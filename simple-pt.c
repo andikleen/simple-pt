@@ -432,12 +432,13 @@ static u64 pid_to_cr3(int pid) {
 	return	cr3_phys + 0x1800; // ?: This offset is strange but consistently seen in the PIP messages.
 }
 
-static void set_cr3_filter(void *arg);
+static inline void set_cr3_filter0(u64 cr3) {
+	if(pt_wrmsrl_safe(MSR_IA32_CR3_MATCH, cr3) < 0)
+		pr_err("cpu %d, cannot set CR3 filter\n", smp_processor_id());
+}
 static int start_pt(void)
 {
 	u64 val, oldval;
-	bool set_cr3;
-	u64	 val_cr3;
 
 	if (pt_rdmsrl_safe(MSR_IA32_RTIT_CTL, &val) < 0)
 		return -1;
@@ -453,7 +454,6 @@ static int start_pt(void)
 		pt_wrmsrl_safe(MSR_IA32_RTIT_STATUS, 0ULL);
 	}
 
-	set_cr3 = false;
 	val &= ~(TSC_EN | CTL_OS | CTL_USER | CR3_FILTER | DIS_RETC | TO_PA |
 		 CYC_EN | TRACE_EN | BRANCH_EN | CYC_EN | MTC_EN |
 		 MTC_EN | MTC_MASK | CYC_MASK | PSB_MASK | ADDR0_MASK | ADDR1_MASK);
@@ -472,13 +472,11 @@ static int start_pt(void)
 		val |= CTL_USER;
 	if (cr3_filter && has_cr3_match) {
 		if(cr3_filter > 1) {
-			val_cr3 = pid_to_cr3(cr3_filter) & ~0xFFF;
-			set_cr3 = true;
+			set_cr3_filter0(pid_to_cr3(cr3_filter) & ~0xFFF);
 			comm_filter[0] = '\0';	// Do not re-target on exec()
 		}
 		else if(!(oldval & CR3_FILTER)) {
-			val_cr3 = 0;
-			set_cr3 = true;
+			set_cr3_filter0(0ULL);
 		}
 		val |= CR3_FILTER;
 	}
@@ -501,7 +499,6 @@ static int start_pt(void)
 		pt_wrmsrl_safe(MSR_IA32_ADDR1_END, addr1_end);
 	}
 
-	if(set_cr3)	set_cr3_filter(&val_cr3);
 	if (pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
 		return -1;
 	__this_cpu_write(pt_running, true);
@@ -814,8 +811,7 @@ static void set_cr3_filter(void *arg)
 		return;
 	if ((val & TRACE_EN) && pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val & ~TRACE_EN) < 0)
 		return;
-	if (pt_wrmsrl_safe(MSR_IA32_CR3_MATCH, *(u64 *)arg) < 0)
-		pr_err("cpu %d, cannot set cr3 filter\n", smp_processor_id());
+	set_cr3_filter0(*(u64*)arg);
 	if ((val & TRACE_EN) && pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
 		return;
 }
@@ -832,7 +828,8 @@ static bool match_comm(void)
 	return !strcmp(current->comm, comm_filter);
 }
 
-inline u64 retrieve_cr3(void) {
+static u64 retrieve_cr3(void)
+{
 	u64 cr3;
 	asm volatile("mov %%cr3,%0" : "=r" (cr3));
 	return cr3;
