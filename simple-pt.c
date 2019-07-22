@@ -476,11 +476,13 @@ static int start_pt(void)
 	if (cr3_filter && has_cr3_match) {
 		if(cr3_filter > 1) {
 			u64 cr3 = pid_to_cr3(cr3_filter) & ~CR3_PCID_MASK;
+#ifdef CONFIG_PAGE_TABLE_ISOLATION
 			if(IS_ENABLED(CONFIG_PAGE_TABLE_ISOLATION)) {
 				if(user && static_cpu_has(X86_FEATURE_PTI)) {
 					cr3 |= 1 << PAGE_SHIFT;
 				}
 			}
+#endif
 			set_cr3_filter0(cr3);
 			comm_filter[0] = '\0';	// Do not re-target on exec()
 		}
