@@ -477,9 +477,12 @@ static int start_pt(void)
 		if(cr3_filter > 1) {
 			u64 cr3 = pid_to_cr3(cr3_filter) & ~CR3_PCID_MASK;
 #ifdef CONFIG_PAGE_TABLE_ISOLATION
-			if(IS_ENABLED(CONFIG_PAGE_TABLE_ISOLATION)) {
-				if(user && static_cpu_has(X86_FEATURE_PTI)) {
+			if(IS_ENABLED(CONFIG_PAGE_TABLE_ISOLATION) && static_cpu_has(X86_FEATURE_PTI)) {
+				if(user) {
 					cr3 |= 1 << PAGE_SHIFT;
+					if(kernel) {
+						pr_warn("Cannot trace kernel along with user space using CR3 filter in PTI-enabled kernel.\n");
+					}
 				}
 			}
 #endif
