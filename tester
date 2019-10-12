@@ -6,6 +6,8 @@
 # may need -k to finish
 # some tests may need a quiescent system
 
+
+
 set -e
 set -x
 
@@ -45,15 +47,19 @@ run --no-kernel -c loop
 grep -q  __libc_start_main.*main stest.out
 grep -v -q page_fault stest.out
 
+
+
 # long trace test to fill the buffer
 CMD=BC1s
 run --no-kernel -c bc
 CMD=$STDCMD
 [ "$(stat -c %s stest.0)" -eq $[2048*1024] ]
 
-# retest simple run
+# retest simple run hope this works.
 run --no-user
 grep -q page_fault stest.out
+
+
 
 # FIXME: work around libipt bug for now on this test case
 if ! ./ptfeature cyc ; then
