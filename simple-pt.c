@@ -61,6 +61,7 @@
 #include <trace/events/sched.h>
 #include <asm/msr.h>
 #include <asm/processor.h>
+#include <asm/processor-flags.h>
 #define CREATE_TRACE_POINTS
 #include "pttp.h"
 
@@ -409,6 +410,35 @@ static void init_mask_ptrs(void)
 		pt_wrmsrl_safe(MSR_IA32_RTIT_OUTPUT_MASK_PTRS, 0ULL);
 }
 
+// https://carteryagemann.com/pid-to-cr3.html
+static u64 pid_to_cr3(int const pid) {
+	unsigned long cr3_phys = 0;
+	rcu_read_lock();
+	{
+		struct task_struct	const *const task = pid_task(find_vpid(pid), PIDTYPE_PID);
+		struct mm_struct	const *mm;
+
+		if(task == NULL)	goto out; // pid has no task_struct
+		mm = task->mm;
+
+		// mm can be NULL in some rare cases (e.g. kthreads)
+		// when this happens, we should check active_mm
+		if(mm == NULL) {
+			mm = task->active_mm;
+			if(mm == NULL)	goto out; // this shouldn't happen, but just in case
+		}
+
+		cr3_phys = virt_to_phys((void*)mm->pgd);
+	}
+	out:
+	rcu_read_unlock();
+	return	cr3_phys;
+}
+
+static inline void set_cr3_filter0(u64 cr3) {
+	if(pt_wrmsrl_safe(MSR_IA32_CR3_MATCH, cr3) < 0)
+		pr_err("cpu %d, cannot set CR3 filter\n", smp_processor_id());
+}
 static int start_pt(void)
 {
 	u64 val, oldval;
@@ -444,8 +474,24 @@ static int start_pt(void)
 	if (user)
 		val |= CTL_USER;
 	if (cr3_filter && has_cr3_match) {
-		if (!(oldval & CR3_FILTER))
-			pt_wrmsrl_safe(MSR_IA32_CR3_MATCH, 0ULL);
+		if(cr3_filter > 1) {
+			u64 cr3 = pid_to_cr3(cr3_filter) & ~CR3_PCID_MASK;
+#ifdef CONFIG_PAGE_TABLE_ISOLATION
+			if(IS_ENABLED(CONFIG_PAGE_TABLE_ISOLATION) && static_cpu_has(X86_FEATURE_PTI)) {
+				if(user) {
+					cr3 |= 1 << PAGE_SHIFT;
+					if(kernel) {
+						pr_warn("Cannot trace kernel along with user space using CR3 filter in PTI-enabled kernel.\n");
+					}
+				}
+			}
+#endif
+			set_cr3_filter0(cr3);
+			comm_filter[0] = '\0';	// Do not re-target on exec()
+		}
+		else if(!(oldval & CR3_FILTER)) {
+			set_cr3_filter0(0ULL);
+		}
 		val |= CR3_FILTER;
 	}
 	if (dis_retc)
@@ -779,8 +825,7 @@ static void set_cr3_filter(void *arg)
 		return;
 	if ((val & TRACE_EN) && pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val & ~TRACE_EN) < 0)
 		return;
-	if (pt_wrmsrl_safe(MSR_IA32_CR3_MATCH, *(u64 *)arg) < 0)
-		pr_err("cpu %d, cannot set cr3 filter\n", smp_processor_id());
+	set_cr3_filter0(*(u64*)arg);
 	if ((val & TRACE_EN) && pt_wrmsrl_safe(MSR_IA32_RTIT_CTL, val) < 0)
 		return;
 }
@@ -808,7 +853,7 @@ static void probe_sched_process_exec(void *arg,
 				     struct task_struct *p, pid_t old_pid,
 				     struct linux_binprm *bprm)
 {
-	u64 cr3 = retrieve_cr3();
+	u64 cr3;
 	char *pathbuf, *path;
 
 	if (!match_comm())
@@ -823,6 +868,7 @@ static void probe_sched_process_exec(void *arg,
 	if (IS_ERR(path))
 		goto out;
 
+	cr3 = retrieve_cr3();
 	trace_exec_cr3(cr3, path, current->pid);
 	if (comm_filter[0] && has_cr3_match) {
 		mutex_lock(&restart_mutex);
