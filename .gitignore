@@ -1,0 +1,13 @@
+*.cmd
+*.o
+*.mod.c
+*.ko
+.tmp*
+
+Module.symvers
+modules.order
+
+fastdecode
+ptfeature
+sptdecode
+sptdump
