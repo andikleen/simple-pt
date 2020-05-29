@@ -167,7 +167,7 @@ static int symbol_set(const char *val, const struct kernel_param *kp)
 				return -EIO;
 			}
 		}
-		addr = kallsyms_lookup_name(sym);
+		addr = (unsigned long)__symbol_get(sym);
 		if (!addr)
 			pr_err("Lookup of '%s' symbol failed\n", sym);
 		if (addr && offset)
@@ -600,7 +600,7 @@ static void do_enumerate_all(void)
 	/* XXX, better way? */
 	rwlock_t *my_tasklist_lock = (rwlock_t *)tasklist_lock_ptr;
 	if (!my_tasklist_lock)
-		my_tasklist_lock = (rwlock_t *)kallsyms_lookup_name("tasklist_lock");
+		my_tasklist_lock = (rwlock_t *)__symbol_get("tasklist_lock");
 	if (!my_tasklist_lock) {
 		pr_err("Cannot find tasklist_lock. CONFIG_KALLSYMS_ALL disabled?\n");
 		pr_err("Specify tasklist_lock_ptr parameter at module load\n");

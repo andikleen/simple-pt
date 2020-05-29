@@ -8,7 +8,7 @@ static inline int compat_register_trace_sched_process_exec(void (*probe)(void *,
 						void *arg)
 {
 	/* Workaround for newer kernels which use non exported symbols */
-	exec_tp = (struct tracepoint *)kallsyms_lookup_name("__tracepoint_sched_process_exec");
+	exec_tp = (struct tracepoint *)__symbol_get("__tracepoint_sched_process_exec");
 	if (!exec_tp)
 		return -EIO;
 	return tracepoint_probe_register(exec_tp, (void *)probe, NULL);
@@ -49,8 +49,8 @@ static void fix_tracepoints(void)
 	int (*trace_module_notify_sym)(struct notifier_block * nb,
 		    unsigned long val, struct module * mod);
 
-	trace_module_notify_sym = (void*)kallsyms_lookup_name("trace_module_notify");
-	tracepoint_module_notify_sym = (void*)kallsyms_lookup_name("tracepoint_module_notify");
+	trace_module_notify_sym = (void*)__symbol_get("trace_module_notify");
+	tracepoint_module_notify_sym = (void*)__symbol_get("tracepoint_module_notify");
 
 	if (trace_module_notify_sym && tracepoint_module_notify_sym) {
 		unsigned old_taint = THIS_MODULE->taints;
