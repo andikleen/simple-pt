@@ -167,6 +167,10 @@ static int symbol_set(const char *val, const struct kernel_param *kp)
 				return -EIO;
 			}
 		}
+		/*
+		 * FIXME: we leak the reference count of the module
+		 * if sym is in a module.
+		 */
 		addr = (unsigned long)__symbol_get(sym);
 		if (!addr)
 			pr_err("Lookup of '%s' symbol failed\n", sym);
@@ -599,6 +603,11 @@ static void do_enumerate_all(void)
 	struct task_struct *t;
 	/* XXX, better way? */
 	rwlock_t *my_tasklist_lock = (rwlock_t *)tasklist_lock_ptr;
+	/*
+	 * Note this might wrap the module counter of the main kernel
+	 * if simple-pt is run more than 4B times,
+	 * but we accept this for now.
+	 */
 	if (!my_tasklist_lock)
 		my_tasklist_lock = (rwlock_t *)__symbol_get("tasklist_lock");
 	if (!my_tasklist_lock) {
