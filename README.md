@@ -285,6 +285,13 @@ However the synchronization is not fine grained enough to directly determine cau
 
 * Binaries with spaces in the name are not supported (due to limitations in sptsideband.py)
 
+* On 5.7+ kernels using symbol names located in modules in --start/stop-addr will leak the module count
+  of the module.
+
+* On systems with page table isolation active the -C filter can only filter on user code or kernel code,
+  but not both at the same time. To avoid this boot with pti=off. Note this may make the system
+  suspectible to Meltdown.
+
 # Porting simple-pt
 
 There is some Linux specific code in the driver, but the basic PT hardware configuration
