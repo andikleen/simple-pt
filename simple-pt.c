@@ -405,28 +405,35 @@ static void init_mask_ptrs(void)
 }
 
 // https://carteryagemann.com/pid-to-cr3.html
-static u64 pid_to_cr3(int const pid) {
+static u64 pid_to_cr3(int const pid)
+{
 	unsigned long cr3_phys = 0;
 	rcu_read_lock();
 	{
-		struct task_struct	const *const task = pid_task(find_vpid(pid), PIDTYPE_PID);
-		struct mm_struct	const *mm;
+		struct pid *pidp = find_vpid(pid);
+		struct task_struct * task;
+		struct mm_struct *mm;
 
-		if(task == NULL)	goto out; // pid has no task_struct
+		if (!pidp)
+			goto out;
+		task = pid_task(pidp, PIDTYPE_PID);
+		if (task == NULL)
+			goto out; // pid has no task_struct
 		mm = task->mm;
 
 		// mm can be NULL in some rare cases (e.g. kthreads)
 		// when this happens, we should check active_mm
-		if(mm == NULL) {
+		if (mm == NULL) {
 			mm = task->active_mm;
-			if(mm == NULL)	goto out; // this shouldn't happen, but just in case
+			if (mm == NULL)
+				goto out; // this shouldn't happen, but just in case
 		}
 
 		cr3_phys = virt_to_phys((void*)mm->pgd);
 	}
-	out:
+out:
 	rcu_read_unlock();
-	return	cr3_phys;
+	return cr3_phys;
 }
 
 static inline void set_cr3_filter0(u64 cr3) {
