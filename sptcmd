@@ -59,6 +59,28 @@ ENUMDFL=1
 declare -a ARGS
 ARGS=($@)
 
+resolvesym()
+{
+	echo >&2 $1
+	case "$1" in
+	[0-9]*)	echo -n $1 ;;
+	*)
+		# do arithmetic in bc because kernel addresses don't fit into awk double
+		awk -v sym=$1 '
+		BEGIN {
+			offset = 0
+			if (split(sym,a,"+") == 2) {
+				offset = strtonum(a[2])
+				sym = a[1]
+			}
+		}
+		$3 == sym {
+			printf "ibase=16 ; " toupper($1) " + %X\n", offset
+		}' /proc/kallsyms | bc
+		;;
+	esac
+}
+
 B=0
 for ((j = 0; j < $#; j++)) ; do
 	if [ $B -ne 0 ] ; then
@@ -119,14 +141,16 @@ while getopts "c:KtURkfdNo:eC:M:P:F:S:s:y:@ED" opt ${ARGS[@]} ; do
 	   ptfeature psb_freq $PSB_FREQ || usage
 	   ;;
 	F) IFS=, read st end <<< "$OPTARG"
-	   RANGE_START[$NUM_RANGE]=$st
-	   RANGE_END[$NUM_RANGE]=$end
+	   RANGE_START[$NUM_RANGE]=`resolvesym $st`
+	   RANGE_END[$NUM_RANGE]=`resolvesym $end`
+	   echo ${RANGE_START[$NUM_RANGE]}
+	   echo ${RANGE_END[$NUM_RANGE]}
 	   RANGE_CFG[$NUM_RANGE]=1
 	   (( NUM_RANGE++ ))
 	   ;;
 	S) IFS=, read st end <<< "$OPTARG"
-	   RANGE_START[$NUM_RANGE]=$st
-	   RANGE_END[$NUM_RANGE]=$end
+	   RANGE_START[$NUM_RANGE]=`resolvesym $st`
+	   RANGE_END[$NUM_RANGE]=`resolvesym $end`
 	   RANGE_CFG[$NUM_RANGE]=2
 	   (( NUM_RANGE++ ))
 	   ;;
