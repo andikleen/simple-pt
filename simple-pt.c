@@ -150,36 +150,7 @@ static int symbol_set(const char *val, const struct kernel_param *kp)
 {
 	int ret = -EIO;
 	if (!isdigit(val[0])) {
-		char sym[128];
-		unsigned offset = 0;
-		unsigned long addr;
-		char *plus, *nl;
-
-		snprintf(sym, 128, "%s", val);
-		nl = strchr(sym, '\n');
-		if (nl)
-			*nl = 0;
-		plus = strchr(sym, '+');
-		if (plus) {
-			*plus = 0;
-			if (kstrtouint(plus + 1, 0, &offset) < 0) {
-				pr_err("Invalid offset\n");
-				return -EIO;
-			}
-		}
-		/*
-		 * FIXME: we leak the reference count of the module
-		 * if sym is in a module.
-		 */
-		addr = (unsigned long)__symbol_get(sym);
-		if (!addr)
-			pr_err("Lookup of '%s' symbol failed\n", sym);
-		if (addr && offset)
-			addr += offset;
-		if (addr) {
-			*(unsigned long *)(kp->arg) = addr;
-			ret = 0;
-		}
+		pr_err("Symbols are not supported anymore. Please resolve through /proc/kallsyms");
 	} else {
 		ret = param_set_ulong(val, kp);
 	}
@@ -225,9 +196,28 @@ static struct kprobe stop_kprobe = {
 static int kprobe_set(const char *val, const struct kernel_param *kp,
 		      struct kprobe *kprobe)
 {
-	int ret = symbol_set(val, kp);
-	unsigned long addr = *(unsigned long *)(kp->arg);
+	int ret;
+	unsigned long addr;
+	char sym[128];
 
+	if (!isdigit(val[0])) {
+		int syml = strcspn(val, "+");
+		if (syml >= sizeof(sym) - 1) {
+			pr_err("Symbol too large %s\n", sym);
+			return -EIO;
+		}
+		memcpy(sym, val, syml);
+		sym[syml] = 0;
+		kprobe->symbol_name = sym;
+		if (val[syml] == '+')
+			syml++;
+		if (kstrtouint(val + syml, 0, &kprobe->offset) < 0) {
+			pr_err("Invalid offset in %s\n", val);
+			return -EIO;
+		}
+	}
+	ret = symbol_set(val, kp);
+	addr = *(unsigned long *)(kp->arg);
 	mutex_lock(&kprobe_mutex);
 	if (kprobe->addr) {
 		unregister_kprobe(kprobe);
@@ -854,23 +844,22 @@ static bool match_comm(void)
 static u64 retrieve_cr3(void)
 {
 	u64 cr3;
+
 	asm volatile("mov %%cr3,%0" : "=r" (cr3));
 	return cr3 & ~0xfff; // mask out the PCID
 }
 
-static void probe_sched_process_exec(void *arg,
-				     struct task_struct *p, pid_t old_pid,
-				     struct linux_binprm *bprm)
+static int probe_exec(struct kprobe *kp, struct pt_regs *regs)
 {
 	u64 cr3;
 	char *pathbuf, *path;
 
 	if (!match_comm())
-		return;
+		return 0;
 
 	pathbuf = (char *)__get_free_page(GFP_ATOMIC);
 	if (!pathbuf)
-		return;
+		return 0;
 
 	/* mmap_sem needed? */
 	path = d_path(&current->mm->exe_file->f_path, pathbuf, PAGE_SIZE);
@@ -886,6 +875,7 @@ static void probe_sched_process_exec(void *arg,
 	}
 out:
 	free_page((unsigned long)pathbuf);
+	return 0;
 }
 
 static int probe_mmap_region(struct kprobe *kp, struct pt_regs *regs)
@@ -930,6 +920,12 @@ out:
 static struct kprobe mmap_kp = {
 	.symbol_name = "mmap_region",
 	.pre_handler = probe_mmap_region,
+};
+
+/* Arbitrary symbol in the exec*() path that is called after the new CR3 is set up */
+static struct kprobe copy_strings_kp = {
+	.symbol_name = "copy_strings_kernel",
+	.pre_handler = probe_exec,
 };
 
 static bool is_psb(void *p)
@@ -1157,9 +1153,14 @@ static int simple_pt_init(void)
 	spt_hotplug_state = err;
 
 	/* Trace exec->cr3 */
-	err = compat_register_trace_sched_process_exec(probe_sched_process_exec, NULL);
-	if (err)
-		pr_info("Cannot register exec tracepoint: %d\n", err);
+	/* This used to use the sched_exec trace point, but Linux doesn't
+	 * export trace points anymore.
+	 */
+	err = register_kprobe(&copy_strings_kp);
+	if (err) {
+		pr_info("Cannot register exec kprobe on copy_strings: %d\n", err);
+		/* Ignore error */
+	}
 
 	/* Trace mmap */
 	err = register_kprobe(&mmap_kp);
@@ -1195,7 +1196,7 @@ static void simple_pt_exit(void)
 	if (spt_hotplug_state >= 0)
 		cpuhp_remove_state(spt_hotplug_state);
 	misc_deregister(&simple_pt_miscdev);
-	compat_unregister_trace_sched_process_exec(probe_sched_process_exec, NULL);
+	unregister_kprobe(&copy_strings_kp);
 	unregister_kprobe(&mmap_kp);
 	atomic_notifier_chain_unregister(&panic_notifier_list, &panic_notifier);
 	unregister_syscore_ops(&simple_pt_syscore);
