@@ -1102,7 +1102,6 @@ static void free_topa(u64 *topa)
 static int spt_cpu_startup(unsigned int cpu)
 {
 	int err;
-	printk("startup %u\n", cpu);
 	err = simple_pt_buffer_init(cpu);
 	if (err)
 		return err;
@@ -1111,7 +1110,6 @@ static int spt_cpu_startup(unsigned int cpu)
 
 static int spt_cpu_teardown(unsigned int cpu)
 {
-	printk("teardown %u\n", cpu);
 	stop_pt(NULL);
 	if (per_cpu(topa_cpu, cpu)) {
 		u64 *topa = per_cpu(topa_cpu, cpu);
