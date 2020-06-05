@@ -599,18 +599,9 @@ static int probe_stop(struct kprobe *kp, struct pt_regs *regs)
 static void do_enumerate_all(void)
 {
 	struct task_struct *t;
-	/* XXX, better way? */
 	rwlock_t *my_tasklist_lock = (rwlock_t *)tasklist_lock_ptr;
-	/*
-	 * Note this might wrap the module counter of the main kernel
-	 * if simple-pt is run more than 4B times,
-	 * but we accept this for now.
-	 */
-	if (!my_tasklist_lock)
-		my_tasklist_lock = (rwlock_t *)__symbol_get("tasklist_lock");
 	if (!my_tasklist_lock) {
-		pr_err("Cannot find tasklist_lock. CONFIG_KALLSYMS_ALL disabled?\n");
-		pr_err("Specify tasklist_lock_ptr parameter at module load\n");
+		pr_err("Specify tasklist_lock_ptr parameter at load to support enumeration of running processes\n");
 		return;
 	}
 
