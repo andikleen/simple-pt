@@ -856,7 +856,7 @@ static int probe_exec(struct kprobe *kp, struct pt_regs *regs)
 	if (!match_comm())
 		return 0;
 
-	pathbuf = (char *)__get_free_page(GFP_ATOMIC);
+	pathbuf = (char *)__get_free_page(GFP_KERNEL);
 	if (!pathbuf)
 		return 0;
 
@@ -921,9 +921,9 @@ static struct kprobe mmap_kp = {
 	.pre_handler = probe_mmap_region,
 };
 
-/* Arbitrary symbol in the exec*() path that is called after the new CR3 is set up */
-static struct kprobe copy_strings_kp = {
-	.symbol_name = "copy_strings_kernel",
+/* Arbitrary symbol in the exec*() path that is called after the new mm/CR3 is set up */
+static struct kprobe finalize_exec_kp = {
+	.symbol_name = "finalize_exec",
 	.pre_handler = probe_exec,
 };
 
@@ -1154,9 +1154,9 @@ static int simple_pt_init(void)
 	/* This used to use the sched_exec trace point, but Linux doesn't
 	 * export trace points anymore.
 	 */
-	err = register_kprobe(&copy_strings_kp);
+	err = register_kprobe(&finalize_exec_kp);
 	if (err) {
-		pr_info("Cannot register exec kprobe on copy_strings: %d\n", err);
+		pr_info("Cannot register exec kprobe on finalize_exec: %d\n", err);
 		/* Ignore error */
 	}
 
@@ -1194,7 +1194,7 @@ static void simple_pt_exit(void)
 	if (spt_hotplug_state >= 0)
 		cpuhp_remove_state(spt_hotplug_state);
 	misc_deregister(&simple_pt_miscdev);
-	unregister_kprobe(&copy_strings_kp);
+	unregister_kprobe(&finalize_exec_kp);
 	unregister_kprobe(&mmap_kp);
 	atomic_notifier_chain_unregister(&panic_notifier_list, &panic_notifier);
 	unregister_syscore_ops(&simple_pt_syscore);
