@@ -193,10 +193,12 @@ fi
 
 [ -n "$DRIVER" ] && /sbin/rmmod simple_pt
 if ! lsmod | grep -q simple_pt ; then
+	TL=$(grep -qw tasklist_lock /proc/kallsyms &&
+		awk '$3 == "tasklist_lock" { print "tasklist_lock_ptr=0x" $1 } ' /proc/kallsyms )
 	if [ -r simple-pt.ko ] ; then
-		/sbin/insmod simple-pt.ko force=$FORCE
+		/sbin/insmod simple-pt.ko force=$FORCE $TL
 	else
-		/sbin/modprobe simple-pt force=$FORCE
+		/sbin/modprobe simple-pt force=$FORCE $TL
 	fi
 fi
 C=/sys/module/simple_pt/parameters
