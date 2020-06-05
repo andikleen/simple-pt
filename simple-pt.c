@@ -436,10 +436,12 @@ out:
 	return cr3_phys;
 }
 
-static inline void set_cr3_filter0(u64 cr3) {
+static inline void set_cr3_filter0(u64 cr3)
+{
 	if(pt_wrmsrl_safe(MSR_IA32_CR3_MATCH, cr3) < 0)
 		pr_err("cpu %d, cannot set CR3 filter\n", smp_processor_id());
 }
+
 static int start_pt(void)
 {
 	u64 val, oldval;
@@ -478,7 +480,7 @@ static int start_pt(void)
 		if(cr3_filter > 1) {
 			u64 cr3 = pid_to_cr3(cr3_filter) & ~CR3_PCID_MASK;
 #ifdef CONFIG_PAGE_TABLE_ISOLATION
-			if(IS_ENABLED(CONFIG_PAGE_TABLE_ISOLATION) && static_cpu_has(X86_FEATURE_PTI)) {
+			if (IS_ENABLED(CONFIG_PAGE_TABLE_ISOLATION) && static_cpu_has(X86_FEATURE_PTI)) {
 				if(user) {
 					cr3 |= 1 << PAGE_SHIFT;
 					if(kernel) {
@@ -489,8 +491,7 @@ static int start_pt(void)
 #endif
 			set_cr3_filter0(cr3);
 			comm_filter[0] = '\0';	// Do not re-target on exec()
-		}
-		else if(!(oldval & CR3_FILTER)) {
+		} else if(!(oldval & CR3_FILTER)) {
 			set_cr3_filter0(0ULL);
 		}
 		val |= CR3_FILTER;
@@ -1094,7 +1095,6 @@ static int simple_pt_cpuid(void)
 }
 
 static int spt_hotplug_state = -1;
-
 
 static void free_topa(u64 *topa)
 {
