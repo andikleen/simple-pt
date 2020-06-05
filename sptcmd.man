@@ -95,6 +95,22 @@ The
 option disables return compression in the trace.
 .PP
 The
+.B --disable-branch
+option disables tracing branches, but keeps other information (like frequency changes).
+Not supported on Broadwell.
+.PP
+The
+.B --ptwrite
+option enables logging of the values of PTWRITE instructions. Only supported on newer CPUs, like Gemini Lake.
+With the
+.B --fup-on-ptw
+option always log the instruction pointer of ptwrite instructions. This is useful together with --disable-trace.
+.PP
+The
+.B --power
+option enables tracing of power events. This requires a newer CPU with power tracing support.
+.PP
+The
 .B --keep
 option keeps the kernel side band trace points running after
 .I sptcmd

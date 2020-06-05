@@ -77,10 +77,13 @@
 #define CTL_USER	BIT_ULL(3)
 #define PT_ERROR	BIT_ULL(4)
 #define CR3_FILTER	BIT_ULL(7)
+#define PWR_EVT_EN	BIT_ULL(4)
+#define FUP_ON_PTW_EN	BIT_ULL(5)
 #define TO_PA		BIT_ULL(8)
 #define MTC_EN		BIT_ULL(9)
 #define TSC_EN		BIT_ULL(10)
 #define DIS_RETC	BIT_ULL(11)
+#define PTW_EN		BIT_ULL(12)
 #define BRANCH_EN	BIT_ULL(13)
 #define MTC_MASK	(0xf << 14)
 #define CYC_MASK	(0xf << 19)
@@ -293,6 +296,8 @@ static DEFINE_PER_CPU(bool, pt_running);
 static DEFINE_PER_CPU(u64, pt_offset);
 static bool initialized;
 static bool has_cr3_match;
+static bool has_ptw;
+static bool has_pwr_evt;
 static unsigned psb_freq_mask;
 static unsigned cyc_thresh_mask;
 static unsigned mtc_freq_mask;
@@ -326,6 +331,15 @@ MODULE_PARM_DESC(cr3_filter, "Enable CR3 filter");
 static int dis_retc = 0;
 module_param_cb(dis_retc, &resync_ops, &dis_retc, 0644);
 MODULE_PARM_DESC(dis_retc, "Disable return compression");
+static int ptw = 0;
+module_param_cb(ptw, &resync_ops, &ptw, 0644);
+MODULE_PARM_DESC(ptw, "Enable PTWRITE (if supported)");
+static int fup_on_ptw = 0;
+module_param_cb(fup_on_ptw, &resync_ops, &fup_on_ptw, 0644);
+MODULE_PARM_DESC(fup_on_ptw, "Report IP on each PTWRITE (with ptw=1)");
+static int pwr_evt = 0;
+module_param_cb(pwr_evt, &resync_ops, &pwr_evt, 0644);
+MODULE_PARM_DESC(pwr_evt, "Enable power tracing (if supported)");
 static bool clear_on_start = true;
 module_param(clear_on_start, bool, 0644);
 MODULE_PARM_DESC(clear_on_start, "Clear PT buffer before start");
@@ -504,6 +518,13 @@ static int start_pt(void)
 		val |= ((mtc_freq - 1) << 14) | MTC_EN;
 	if (psb_freq && ((1U << (psb_freq-1)) & psb_freq_mask))
 		val |= (psb_freq - 1) << 24;
+	if (ptw && has_ptw) {
+		val |= PTW_EN;
+		if (fup_on_ptw)
+			val |= FUP_ON_PTW_EN;
+	}
+	if (pwr_evt && has_pwr_evt)
+		val |= PWR_EVT_EN;
 	if (addr0_cfg && (addr0_cfg <= addr_cfg_max) && addr_range_num >= 1) {
 		val |= ((u64)addr0_cfg << ADDR0_SHIFT);
 		pt_wrmsrl_safe(MSR_IA32_ADDR0_START, addr0_start);
@@ -1067,6 +1088,8 @@ static int simple_pt_cpuid(void)
 		return -EIO;
 	}
 	has_cr3_match = !!(b & BIT(0));
+	has_ptw = !!(b & BIT(4));
+	has_pwr_evt = !!(b & BIT(5));
 	if (b & BIT(2))
 		addr_cfg_max = 2;
 	if (!(c & BIT(1)))
