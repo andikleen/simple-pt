@@ -51,6 +51,7 @@
 #include <linux/gfp.h>
 #include <linux/io.h>
 #include <linux/mm.h>
+#include <linux/nodemask.h>
 #include <linux/uaccess.h>
 #include <linux/sched.h>
 #include <linux/kallsyms.h>
@@ -346,6 +347,10 @@ MODULE_PARM_DESC(clear_on_start, "Clear PT buffer before start");
 static bool single_range = false;
 module_param(single_range, bool, 0444);
 MODULE_PARM_DESC(single_range, "Use single range output");
+static int num_sro_bases;
+static unsigned long sro_bases[1<<NODES_SHIFT];
+module_param_array(sro_bases, ulong, &num_sro_bases, 0444);
+MODULE_PARM_DESC(sro_bases, "physical addresses of SRO buffers");
 static int enumerate_all = 0;
 module_param_cb(enumerate_all, &enumerate_ops, &enumerate_all, 0644);
 MODULE_PARM_DESC(enumerate_all, "Enumerate all processes CR3s (only use after initialization)");
@@ -394,6 +399,8 @@ MODULE_PARM_DESC(print_panic_psbs, "Print as many PSBs from PT log into kernel l
 module_param_cb(log_dump, &log_dump_ops, &log_dump, 0644);
 
 static DEFINE_MUTEX(restart_mutex);
+
+static atomic_long_t sro_bases_curr[1<<NODES_SHIFT];
 
 static inline int pt_wrmsrl_safe(unsigned msr, u64 val)
 {
@@ -655,15 +662,23 @@ static int simple_pt_buffer_init(int cpu)
 {
 	unsigned long pt_buffer;
 	u64 *topa;
+	int node;
 
 	/* allocate buffer */
 	pt_buffer = per_cpu(pt_buffer_cpu, cpu);
 	if (!pt_buffer) {
-		pt_buffer = __get_free_pages(GFP_KERNEL|__GFP_NOWARN|__GFP_ZERO, pt_buffer_order);
-		if (!pt_buffer) {
-			pr_err("cpu %d, Cannot allocate %ld KB buffer\n", cpu,
-					(PAGE_SIZE << pt_buffer_order) / 1024);
-			return -ENOMEM;
+		if (num_sro_bases) {
+			node = cpu_to_node(cpu);
+			pt_buffer = (long)__va(atomic_long_add_return(
+					1UL << pt_buffer_order,
+					&sro_bases_curr[node]) << PAGE_SHIFT);
+		} else {
+			pt_buffer = __get_free_pages(GFP_KERNEL|__GFP_NOWARN|__GFP_ZERO, pt_buffer_order);
+			if (!pt_buffer) {
+				pr_err("cpu %d, Cannot allocate %ld KB buffer\n", cpu,
+						(PAGE_SIZE << pt_buffer_order) / 1024);
+				return -ENOMEM;
+			}
 		}
 		per_cpu(pt_buffer_cpu, cpu) = pt_buffer;
 	}
@@ -1140,7 +1155,12 @@ static int spt_cpu_teardown(unsigned int cpu)
 		free_page((unsigned long)topa);
 		per_cpu(topa_cpu, cpu) = NULL;
 	}
-	if (per_cpu(pt_buffer_cpu, cpu)) {
+	if (per_cpu(pt_buffer_cpu, cpu) && !num_sro_bases) {
+		/*
+		 * With SRO Bases specified, keep existing pt_buffer_cpu,
+		 * as it's considered constant for the life time of
+		 * the module, not the life time of the CPU.
+		 */
 		free_pages(per_cpu(pt_buffer_cpu, cpu), pt_buffer_order);
 		per_cpu(pt_buffer_cpu, cpu) = 0;
 	}
@@ -1149,7 +1169,7 @@ static int spt_cpu_teardown(unsigned int cpu)
 
 static int simple_pt_init(void)
 {
-	int err;
+	int err, i;
 
 	if (THIS_MODULE->taints)
 		fix_tracepoints();
@@ -1164,6 +1184,25 @@ static int simple_pt_init(void)
 		return err;
 	}
 
+	if (!single_range)
+		num_sro_bases = 0;
+	else if (num_sro_bases) {
+		if (num_sro_bases != num_possible_nodes()) {
+			pr_err("sro_bases should be provided for %u nodes",
+					num_possible_nodes());
+			err = -EINVAL;
+			goto out_buffers;
+		}
+		for (i = 0; i != num_sro_bases; ++i) {
+			if (sro_bases[i] & ((1UL << pt_buffer_order) - 1)) {
+				pr_err("sro_bases must be aligned to 2^pt_buffer_order");
+				err = -EINVAL;
+				goto out_buffers;
+			}
+			atomic_long_set(&sro_bases_curr[i],
+					sro_bases[i] - (1UL << pt_buffer_order));
+		}
+	}
 	err = cpuhp_setup_state(CPUHP_AP_ONLINE_DYN, "simple-pt",
 				       spt_cpu_startup,
 				       spt_cpu_teardown);
