@@ -81,7 +81,7 @@ Also udis86 has been replaced with xed.__
 
 Build and install libipt
 
-	git clone https://github.com/01org/processor-trace
+	git clone https://github.com/01org/processor-trace -b stable/v2.0
 	cd processor-trace
 	cmake .
 	make
