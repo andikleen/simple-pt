@@ -66,6 +66,11 @@
 #define CREATE_TRACE_POINTS
 #include "pttp.h"
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,14,0)
+#include <linux/panic_notifier.h>
+#endif
+
 #include "compat.h"
 #include "simple-pt.h"
 
