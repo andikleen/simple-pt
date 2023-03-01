@@ -312,7 +312,6 @@ The user tools should be portable to POSIX C99 based systems. The code to access
 image will need to be adapted.  Porting to non DWARF/ELF based systems will need more work.
 
 # Contact
-simple-pt@halobates.de
 
 For bugs please file a github issue.
 
