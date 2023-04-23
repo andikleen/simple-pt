@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include <sys/mman.h>
 #include <signal.h>
 #include <sys/ioctl.h>
@@ -45,11 +46,26 @@
 
 #define err(x) perror(x), exit(1)
 
+size_t write_all(int fd, char *buf, size_t sz)
+{
+	size_t left = sz;
+	while(left) {
+		size_t once = 1UL * 1024 * 1024 * 1024;
+		once = once > left ? left : once;
+		ssize_t ret = write(fd, buf, once);
+		if (ret <= 0)
+			err("write to file");
+		left -= ret;
+		buf += ret;
+	}
+	return sz;
+}
+
 int main(int ac, char **av)
 {
 	int ncpus = sysconf(_SC_NPROCESSORS_CONF);
 	int pfds[ncpus];
-	int bufsize;
+	uint64_t bufsize;
 	char *pbuf[ncpus];
 
 	int i;
@@ -79,17 +95,18 @@ int main(int ac, char **av)
 		if (fd < 0)
 			err("Opening output file");
 
-		unsigned offset;
+		uint64_t offset;
 		if (ioctl(pfds[i], SIMPLE_PT_GET_OFFSET, &offset) < 0) {
 			perror("SIMPLE_PT_GET_OFFSET");
 			continue;
 		}
 
-		unsigned len = 0;
+		size_t len = 0;
 		if (*(uint64_t *)(pbuf[i] + offset))
-			len += write(fd, pbuf[i] + offset, bufsize - offset);
-		len += write(fd, pbuf[i], offset);
-		printf("cpu %3d offset %6u, %5u KB, writing to %s\n", i, offset, len >> 10, fn);
+			len += write_all(fd, pbuf[i] + offset, bufsize - offset);
+		len += write_all(fd, pbuf[i], offset);
+		printf("cpu %3d offset %6" PRIu64 ", %5zu KB, writing to %s\n", i, offset, len >> 10, fn);
+
 		close(fd);
 		if (len == 0)
 			unlink(fn);

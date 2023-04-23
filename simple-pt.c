@@ -276,6 +276,12 @@ static struct kernel_param_ops trace_stop_ops = {
 /* Support for Linux panic dumps (optional) */
 
 static int pt_num_buffers = 1;
+
+static int get_topa_order(void)
+{
+	return get_order((pt_num_buffers + 1) * 8);
+}
+
 static int log_dump = 0;
 static void print_last_branches(int num_psbs);
 
@@ -694,7 +700,7 @@ static int simple_pt_buffer_init(int cpu)
 		if (!topa) {
 			int n;
 
-			topa = (u64 *)__get_free_page(GFP_KERNEL|__GFP_ZERO);
+			topa = (u64 *)__get_free_pages(GFP_KERNEL|__GFP_ZERO, get_topa_order());
 			if (!topa) {
 				pr_err("cpu %d, Cannot allocate topa page\n", cpu);
 				goto out_pt_buffer;
@@ -821,12 +827,12 @@ static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 		return 0;
 	}
 	case SIMPLE_PT_GET_SIZE: {
-		int num = topa_entries(file_get_cpu(file));
+		u64 num = topa_entries(file_get_cpu(file));
 		return put_user(num * (PAGE_SIZE << pt_buffer_order),
-				(int *)arg);
+				(u64 *)arg);
 	}
 	case SIMPLE_PT_GET_OFFSET: {
-		unsigned offset;
+		u64 offset;
 		int ret = 0;
 		mutex_lock(&restart_mutex);
 		if (per_cpu(pt_running, file_get_cpu(file)))
@@ -835,7 +841,7 @@ static long simple_pt_ioctl(struct file *file, unsigned int cmd,
 			offset = per_cpu(pt_offset, file_get_cpu(file));
 		mutex_unlock(&restart_mutex);
 		if (!ret)
-			ret = put_user(offset, (int *)arg);
+			ret = put_user(offset, (u64 *)arg);
 		return ret;
 	}
 	default:
@@ -1114,8 +1120,7 @@ static int simple_pt_cpuid(void)
 		addr_cfg_max = 2;
 	if (!(c & BIT(1)))
 		pt_num_buffers = 1;
-	pt_num_buffers = min_t(unsigned, pt_num_buffers,
-			       (PAGE_SIZE / 8) - 1);
+
 	a1 = b1 = c1 = d1 = 0;
 	if (a >= 1)
 		cpuid_count(0x14, 1, &a1, &b1, &c1, &d1);
@@ -1157,7 +1162,7 @@ static int spt_cpu_teardown(unsigned int cpu)
 	if (per_cpu(topa_cpu, cpu)) {
 		u64 *topa = per_cpu(topa_cpu, cpu);
 		free_topa(topa);
-		free_page((unsigned long)topa);
+		free_pages((unsigned long)topa, get_topa_order());
 		per_cpu(topa_cpu, cpu) = NULL;
 	}
 	if (per_cpu(pt_buffer_cpu, cpu) && !num_sro_bases) {
